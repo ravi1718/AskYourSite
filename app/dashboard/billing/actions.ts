@@ -9,19 +9,19 @@ const PLAN_PRODUCT_MAP: Record<string, string> = {
   business: process.env.DODO_PRODUCT_ID_BUSINESS ?? "",
 };
 
-export async function createCheckoutAction(formData: FormData) {
+export async function createCheckoutAction(
+  _prev: { error: string } | null,
+  formData: FormData,
+): Promise<{ error: string } | null> {
   const planCode = formData.get("planCode") as string;
 
   if (!planCode || !["starter", "pro", "business"].includes(planCode)) {
-    throw new Error("Invalid plan selected");
+    return { error: "Invalid plan selected." };
   }
 
   const productId = PLAN_PRODUCT_MAP[planCode];
   if (!productId) {
-    throw new Error(
-      `Product ID for plan "${planCode}" is not configured. ` +
-      `Set DODO_PRODUCT_ID_${planCode.toUpperCase()} in your environment variables.`,
-    );
+    return { error: `Product ID for plan "${planCode}" is not configured.` };
   }
 
   const supabase = await getSupabaseServerClient();
@@ -31,27 +31,38 @@ export async function createCheckoutAction(formData: FormData) {
     redirect("/login");
   }
 
-  // Build checkout session body — userId in metadata lets the webhook identify the user
   const body = {
     product_cart: [{ product_id: productId, quantity: 1 }],
-    metadata: {
-      userId: user.id,
-      planCode,
-    },
+    metadata: { userId: user.id, planCode },
   };
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const checkoutRes = await fetch(`${appUrl}/checkout`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
 
-  if (!checkoutRes.ok) {
-    const text = await checkoutRes.text();
-    throw new Error(`Checkout session creation failed: ${text}`);
+  try {
+    const checkoutRes = await fetch(`${appUrl}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!checkoutRes.ok) {
+      const text = await checkoutRes.text();
+      // 403 = merchant account not yet approved for live payments
+      if (checkoutRes.status === 403 || text.includes("Live payments not enabled")) {
+        return {
+          error:
+            "Live payments are not yet enabled on this account. Your merchant verification is pending — please check your Dodo Payments dashboard.",
+        };
+      }
+      return { error: `Payment provider error: ${text}` };
+    }
+
+    const { checkout_url } = (await checkoutRes.json()) as { checkout_url: string };
+    redirect(checkout_url);
+  } catch (err: any) {
+    // redirect() throws internally — let it propagate
+    if (err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
+    return { error: "Something went wrong. Please try again." };
   }
 
-  const { checkout_url } = (await checkoutRes.json()) as { checkout_url: string };
-  redirect(checkout_url);
 }
