@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --page-bg: #0A0A0A;
+  --page-fg: #F8FAFC;
+  --panel-bg: rgba(17, 17, 17, 0.85); /* #111111 with opacity */
+  --panel-border: #1A1A1A;
+  --accent-blue: #3b82f6;
+  --accent-violet: #8b5cf6;
+}
+
+/* Force dark mode */
+.light, .dark {
+  color-scheme: dark;
+  --page-bg: #0A0A0A;
+  --page-fg: #F8FAFC;
+  --panel-bg: rgba(17, 17, 17, 0.85);
+  --panel-border: #1A1A1A;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--page-bg);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.08), transparent 40%),
+    var(--page-bg);
+  background-attachment: fixed;
+  color: var(--page-fg);
+  font-family: var(--font-geist-sans), sans-serif;
+  transition: background-color 0.35s ease, color 0.25s ease;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-space-grotesk), sans-serif;
+}
+
+/* Smooth color transitions on interactive elements globally */
+a,
+button,
+input,
+select,
+textarea {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.grid-mask {
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 1), transparent);
+}
+
+.panel {
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
+}
+
+/* Staggered animation delay utilities */
+.delay-75  { animation-delay: 75ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-700 { animation-delay: 700ms; }
+.delay-1000 { animation-delay: 1000ms; }
+.delay-1500 { animation-delay: 1500ms; }
+.delay-2000 { animation-delay: 2000ms; }
+
+/* ========================================
+   LANDING PAGE ANIMATIONS
+   ======================================== */
+
+/* Fade up entrance */
+@keyframes fadeSlideUp {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeSlideUp 0.6s ease-out both;
+}
+
+/* Float bob */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+
+/* Pulse line */
+@keyframes pulseLine {
+  0%, 100% { opacity: 0.4; transform: scaleX(0.96); }
+  50%       { opacity: 1; transform: scaleX(1); }
+}
+
+/* Shimmer / sheen */
+@keyframes shimmer {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+/* Animated gradient background-position */
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* Pulse expanding rings */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.85); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* Marquee scroll */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marquee-reverse {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+/* Border beam spin */
+@keyframes border-beam-spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Orbit */
+@keyframes orbit {
+  0%   { transform: rotate(0deg) translateX(var(--orbit-radius, 120px)) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(var(--orbit-radius, 120px)) rotate(-360deg); }
+}
+
+/* Gentle spin */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Breathe / scale */
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.04); }
+}
+
+/* Number ticker */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Blink cursor */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* Dash travel along path */
+@keyframes dash-travel {
+  0%   { stroke-dashoffset: 1000; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* Glow pulse */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.4), 0 0 40px rgba(59, 130, 246, 0.15); }
+  50%       { box-shadow: 0 0 30px rgba(59, 130, 246, 0.7), 0 0 60px rgba(139, 92, 246, 0.3); }
+}
+
+/* Slide in left */
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ========================================
+   GLASS CARD UTILITY
+   ======================================== */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.glass-card-hover {
+  transition: border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 40px rgba(59, 130, 246, 0.1);
+}
+
+/* ========================================
+   DOT GRID BACKGROUND
+   ======================================== */
+.dot-grid {
+  background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ========================================
+   GRADIENT TEXT ANIMATION
+   ======================================== */
+.gradient-text-animated {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-x 4s ease infinite;
+}
+
+/* ========================================
+   BORDER BEAM EFFECT
+   ======================================== */
+.border-beam-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.border-beam-wrapper::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--beam-angle, 0deg),
+    transparent 0deg,
+    #3b82f6 60deg,
+    #8b5cf6 120deg,
+    #ec4899 180deg,
+    transparent 240deg
+  );
+  animation: border-beam-spin 4s linear infinite;
+  z-index: -1;
+}
+
+.border-beam-wrapper::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: calc(inherit - 1px);
+  background: #0A0A0A;
+  z-index: -1;
+}
