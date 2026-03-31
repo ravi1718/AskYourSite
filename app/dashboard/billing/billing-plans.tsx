@@ -67,6 +67,7 @@ function PlanForm({
           <span className="text-4xl">${(plan.price_monthly_cents / 100).toFixed(0)}</span>
           <span className="text-sm font-medium text-slate-500">/mo</span>
         </div>
+        <p className="mt-0.5 text-xs text-slate-600">+ taxes applicable</p>
       </div>
 
       <ul className="flex-1 mb-8 space-y-3">

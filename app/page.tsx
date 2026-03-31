@@ -24,6 +24,13 @@ import {
   Layers,
   Briefcase,
   ChevronDown,
+  User,
+  Building2,
+  Store,
+  Users,
+  Stethoscope,
+  BookOpen,
+  Linkedin,
 } from "lucide-react";
 
 /* ─── Small reusable helpers ─────────────────────────── */
@@ -541,6 +548,81 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
+          WHO IT'S FOR
+      ═══════════════════════════════════════ */}
+      <section className="relative z-10 mx-auto max-w-7xl px-6 py-20 lg:px-10">
+        <div className="text-center mb-10">
+          <SectionBadge>Who it&apos;s for</SectionBadge>
+          <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Built for every kind of builder
+          </h2>
+          <p className="mt-4 text-slate-400 max-w-xl mx-auto">
+            From solo makers to scaling teams — if you have a website, AskYourSite works for you.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[
+            {
+              icon: User,
+              label: "Solo Founders",
+              tagline: "Look bigger, ship faster, handle support alone",
+              color: "text-violet-400",
+              bg: "bg-violet-500/10 border-violet-500/20",
+            },
+            {
+              icon: Layers,
+              label: "SaaS Companies",
+              tagline: "Cut support tickets, automate onboarding Q&A",
+              color: "text-primary",
+              bg: "bg-primary/10 border-primary/20",
+            },
+            {
+              icon: Store,
+              label: "E-commerce Stores",
+              tagline: "Product discovery, order help, 24/7 upsells",
+              color: "text-pink-400",
+              bg: "bg-pink-500/10 border-pink-500/20",
+            },
+            {
+              icon: Building2,
+              label: "Agencies",
+              tagline: "Deploy AI assistants for every client site",
+              color: "text-amber-400",
+              bg: "bg-amber-500/10 border-amber-500/20",
+            },
+            {
+              icon: Stethoscope,
+              label: "Service Businesses",
+              tagline: "Clinics, law firms & consultants — answer enquiries instantly",
+              color: "text-emerald-400",
+              bg: "bg-emerald-500/10 border-emerald-500/20",
+            },
+            {
+              icon: BookOpen,
+              label: "Content Creators",
+              tagline: "Monetize your knowledge, answer audience questions",
+              color: "text-cyan-400",
+              bg: "bg-cyan-500/10 border-cyan-500/20",
+            },
+          ].map((item, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-4 rounded-2xl border p-5 backdrop-blur-sm transition-all hover:scale-[1.02] ${item.bg}`}
+            >
+              <div className={`mt-0.5 shrink-0 ${item.color}`}>
+                <item.icon className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-white text-sm">{item.label}</p>
+                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{item.tagline}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
           USE CASES
       ═══════════════════════════════════════ */}
       <section className="relative z-10 mx-auto max-w-7xl px-6 py-24 lg:px-10">
@@ -744,6 +826,7 @@ export default function Home() {
                   <span className="font-display text-4xl font-bold text-white">{plan.price}</span>
                   <span className="text-sm text-slate-500">{plan.period}</span>
                 </div>
+                <p className="mt-0.5 text-xs text-slate-600">+ taxes applicable</p>
                 <p className="mt-1 text-sm text-slate-500">{plan.desc}</p>
               </div>
 
@@ -818,27 +901,27 @@ export default function Home() {
                 Turn any website into a 24/7 AI sales and support agent. No code required.
               </p>
               <div className="flex gap-3 mt-5">
-                <a href="#" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
+                <a href="https://x.com/ravitej_neeli" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
                   <Twitter className="h-3.5 w-3.5" />
                 </a>
-                <a href="#" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
-                  <Github className="h-3.5 w-3.5" />
+                <a href="https://www.linkedin.com/in/ravitej-c-neeli-612877266/" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
+                  <Linkedin className="h-3.5 w-3.5" />
                 </a>
               </div>
             </div>
 
             {/* Links */}
             {[
-              { heading: "Product", links: ["Features", "Pricing", "Changelog", "Roadmap"] },
-              { heading: "Company", links: ["About", "Blog", "Careers", "Press"] },
-              { heading: "Legal", links: ["Privacy", "Terms", "Security", "Cookies"] },
+              { heading: "Product", links: [{ label: "Features", href: "#features" }, { label: "Pricing", href: "#pricing" }, { label: "Changelog", href: "#" }, { label: "Roadmap", href: "#" }] },
+              { heading: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Careers", href: "#" }, { label: "Press", href: "#" }] },
+              { heading: "Legal", links: [{ label: "Privacy Policy", href: "/privacy" }, { label: "Terms of Service", href: "/terms" }, { label: "Security", href: "#" }, { label: "Cookies", href: "#" }] },
             ].map((col) => (
               <div key={col.heading}>
                 <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">{col.heading}</h4>
                 <ul className="space-y-2.5">
                   {col.links.map((link) => (
-                    <li key={link}>
-                      <a href="#" className="text-sm text-slate-400 hover:text-white transition-colors">{link}</a>
+                    <li key={link.label}>
+                      <Link href={link.href} className="text-sm text-slate-400 hover:text-white transition-colors">{link.label}</Link>
                     </li>
                   ))}
                 </ul>
@@ -847,8 +930,11 @@ export default function Home() {
           </div>
 
           <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-            <p>© 2025 AskYourSite. All rights reserved.</p>
-            <p>Made with ❤️ for businesses worldwide</p>
+            <p>© 2026 AskYourSite. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms of Service</Link>
+            </div>
           </div>
         </div>
       </footer>
