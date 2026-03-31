@@ -11,7 +11,7 @@
     }
 
     // Configuration
-    const scriptUrl = scriptTag && scriptTag.src ? new URL(scriptTag.src) : { origin: "http://localhost:3000" };
+    const scriptUrl = scriptTag && scriptTag.src ? new URL(scriptTag.src) : { origin: "https://askyoursite.in" };
     const API_BASE = scriptUrl.origin;
 
     let widgetConfig = {

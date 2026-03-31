@@ -1,11 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { Bot, BarChart2, Library, Settings } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { PageTransition } from "@/components/page-transition";
 import { InactivityGuard } from "@/components/inactivity-guard";
+import { SignupTracker } from "@/components/signup-tracker";
 
 function daysLeft(end: string | null): number {
   if (!end) return 0;
@@ -88,6 +90,9 @@ export default async function DashboardLayout({
         )}
 
         <main className="flex-1 overflow-y-auto w-full p-4 md:p-8">
+          <Suspense fallback={null}>
+            <SignupTracker />
+          </Suspense>
           <PageTransition>{children}</PageTransition>
         </main>
       </div>

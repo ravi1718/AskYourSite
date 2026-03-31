@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
 import { Bot, Paperclip, Send, ChevronDown, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { sendGAEvent } from "@next/third-parties/google";
 
 const SUGGESTIONS_DELIMITER = "__AYS_SUGGESTIONS__";
 
@@ -55,6 +56,7 @@ export function ChatWidget({ assistantId }: { assistantId?: string }) {
     const currentImage = imageAttachment;
     setImageAttachment(null);
     setIsStreaming(true);
+    sendGAEvent("event", "chat_message_sent", { widget: "site_widget" });
 
     const userMessage: Message & { imagePreview?: string } = {
       role: "user",
