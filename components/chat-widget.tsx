@@ -5,7 +5,107 @@ import { Bot, Paperclip, Send, ChevronDown, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
 
-const SUGGESTIONS_DELIMITER = "__AYS_SUGGESTIONS__";
+const AYS_MARKER = "__AYS_";
+
+interface AysMarkers {
+  text: string;
+  suggestions: string[];
+  products: Product[];
+  actions: Action[];
+}
+
+interface Product {
+  name?: string;
+  price?: string;
+  image?: string;
+  url?: string;
+  description?: string;
+}
+
+interface Action {
+  label: string;
+  url?: string;
+  style?: "primary" | "secondary";
+  icon?: "cart" | "track" | "support";
+}
+
+function parseMarkers(raw: string): AysMarkers {
+  const result: AysMarkers = { text: raw, suggestions: [], products: [], actions: [] };
+  const sugsIdx = raw.indexOf("__AYS_SUGGESTIONS__");
+  if (sugsIdx === -1) return result;
+  result.text = raw.substring(0, sugsIdx);
+  const tail = raw.substring(sugsIdx + "__AYS_SUGGESTIONS__".length);
+
+  const prodsIdx = tail.indexOf("__AYS_PRODUCTS__");
+  const actsIdx  = tail.indexOf("__AYS_ACTIONS__");
+
+  let sugsRaw = tail;
+  if (prodsIdx !== -1) sugsRaw = tail.substring(0, prodsIdx);
+  else if (actsIdx !== -1) sugsRaw = tail.substring(0, actsIdx);
+  try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch { /* skip */ }
+
+  if (prodsIdx !== -1) {
+    let prodsRaw = tail.substring(prodsIdx + "__AYS_PRODUCTS__".length);
+    if (actsIdx !== -1 && actsIdx > prodsIdx) prodsRaw = prodsRaw.substring(0, actsIdx - prodsIdx - "__AYS_PRODUCTS__".length);
+    try { result.products = JSON.parse(prodsRaw.trim()); } catch { /* skip */ }
+  }
+  if (actsIdx !== -1) {
+    const actsRaw = tail.substring(actsIdx + "__AYS_ACTIONS__".length);
+    try { result.actions = JSON.parse(actsRaw.trim()); } catch { /* skip */ }
+  }
+  return result;
+}
+
+const ACTION_ICONS: Record<string, string> = { cart: "🛒", track: "📦", support: "💬" };
+
+function ProductCards({ products }: { products: Product[] }) {
+  if (!products.length) return null;
+  return (
+    <div className="flex gap-2.5 overflow-x-auto pb-1 pl-9 scrollbar-thin scrollbar-thumb-slate-700">
+      {products.map((p, i) => (
+        <div key={i} className="flex-none w-40 bg-slate-800 border border-slate-700 rounded-xl overflow-hidden flex flex-col hover:border-primary transition-colors">
+          {p.image && (
+            <img src={p.image} alt={p.name || ""} className="w-full h-28 object-cover bg-slate-900" onError={(e) => (e.currentTarget.style.display = "none")} />
+          )}
+          <div className="p-2 flex flex-col gap-1 flex-1">
+            {p.name && <p className="text-xs font-semibold text-white line-clamp-2 leading-tight">{p.name}</p>}
+            {p.price && <p className="text-xs font-bold text-primary">{p.price}</p>}
+            {p.description && <p className="text-[11px] text-slate-400 line-clamp-2 leading-tight flex-1">{p.description}</p>}
+          </div>
+          {p.url && (
+            <a href={p.url} target="_blank" rel="noopener" className="mx-2 mb-2 py-1.5 bg-primary text-white text-[11px] font-semibold rounded-lg text-center hover:opacity-80 transition-opacity">
+              View Product
+            </a>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionButtons({ actions }: { actions: Action[] }) {
+  if (!actions.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 pl-9">
+      {actions.map((a, i) => (
+        <a
+          key={i}
+          href={a.url || "#"}
+          target="_blank"
+          rel="noopener"
+          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-opacity hover:opacity-80 ${
+            a.style === "secondary"
+              ? "border border-primary text-primary bg-transparent"
+              : "bg-primary text-white"
+          }`}
+        >
+          {a.icon && <span>{ACTION_ICONS[a.icon]}</span>}
+          <span>{a.label}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -32,6 +132,8 @@ export function ChatWidget({
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [actions, setActions] = useState<Action[]>([]);
   const [sessionId] = useState(() => crypto.randomUUID());
   const [imageAttachment, setImageAttachment] = useState<ImageAttachment | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -67,6 +169,8 @@ export function ChatWidget({
     if ((!userText && !imageAttachment) || isStreaming) return;
 
     setSuggestions([]);
+    setProducts([]);
+    setActions([]);
     setInput("");
     const currentImage = imageAttachment;
     setImageAttachment(null);
@@ -104,46 +208,39 @@ export function ChatWidget({
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let mainBuffer = "";
-      let suggestionsBuffer = "";
-      let delimiterFound = false;
+      let fullResponse = "";
+      let markerFound = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
 
-        if (delimiterFound) {
-          suggestionsBuffer += chunk;
-        } else {
-          mainBuffer += chunk;
-          const delimIdx = mainBuffer.indexOf(SUGGESTIONS_DELIMITER);
-          if (delimIdx !== -1) {
-            delimiterFound = true;
-            const cleanText = mainBuffer.substring(0, delimIdx);
-            suggestionsBuffer = mainBuffer.substring(delimIdx + SUGGESTIONS_DELIMITER.length);
-            mainBuffer = cleanText;
-          }
+        if (!markerFound) {
+          const markerIdx = fullResponse.indexOf(AYS_MARKER);
+          const displayText = markerIdx !== -1
+            ? (markerFound = true, fullResponse.substring(0, markerIdx))
+            : fullResponse;
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = { role: "assistant", content: mainBuffer };
+            updated[updated.length - 1] = { role: "assistant", content: displayText };
             return updated;
           });
         }
       }
 
-      // Parse suggestions after stream fully ends
-      if (delimiterFound && suggestionsBuffer) {
-        try {
-          const parsed = JSON.parse(suggestionsBuffer.trim());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setSuggestions(parsed);
-          }
-        } catch {
-          // malformed suggestions — skip silently
-        }
-      }
+      // Parse all markers after stream ends and update state
+      const parsed = parseMarkers(fullResponse);
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: parsed.text };
+        return updated;
+      });
+      if (parsed.suggestions.length > 0) setSuggestions(parsed.suggestions);
+      if (parsed.products.length > 0) setProducts(parsed.products);
+      if (parsed.actions.length > 0) setActions(parsed.actions);
     } catch (err) {
       setMessages((prev) => {
         const updated = [...prev];
@@ -312,6 +409,16 @@ export function ChatWidget({
                             {q}
                           </button>
                         ))}
+                      </div>
+                    )}
+                    {isLast && products.length > 0 && (
+                      <div className="mt-2">
+                        <ProductCards products={products} />
+                      </div>
+                    )}
+                    {isLast && actions.length > 0 && (
+                      <div className="mt-2">
+                        <ActionButtons actions={actions} />
                       </div>
                     )}
                   </div>

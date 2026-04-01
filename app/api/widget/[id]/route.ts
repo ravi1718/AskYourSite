@@ -73,6 +73,11 @@ export async function GET(
       // lead_capture_enabled: true only if plan allows it AND the owner toggled it on
       lead_capture_enabled: !!(featureFlags.lead_capture && widgetConfig.leadCaptureEnabled === true),
       image_search_enabled: featureFlags.image_search,
+      // Agent config fields (null if not configured)
+      checkout_url: widgetConfig.checkoutUrl ?? null,
+      order_tracking_url: widgetConfig.orderTrackingUrl ?? null,
+      support_url: widgetConfig.supportUrl ?? null,
+      order_webhook_url: widgetConfig.orderWebhookUrl ?? null,
     }, {
       status: 200,
       headers: {

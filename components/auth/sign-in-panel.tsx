@@ -19,7 +19,7 @@ export function SignInPanel() {
       return;
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const appUrl = window.location.origin;
     const redirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

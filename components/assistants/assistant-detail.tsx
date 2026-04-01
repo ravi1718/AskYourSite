@@ -53,6 +53,10 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     welcomeMessage: assistant.welcome_message || "Hi! How can I help you today?",
     removeBranding: false,
     leadCaptureEnabled: false,
+    checkoutUrl: "",
+    orderTrackingUrl: "",
+    supportUrl: "",
+    orderWebhookUrl: "",
   };
   const [widgetConfig, setWidgetConfig] = useState<Record<string, any>>({
     ...defaultConfig,
@@ -1012,6 +1016,31 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                       )}
                     </div>
                   )}
+
+                  {/* Agent Configuration */}
+                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Agent Configuration</h3>
+                      <p className="text-xs text-slate-400 mt-1">Provide URLs so the AI can direct customers to the right place with action buttons.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-2">Checkout URL</label>
+                      <input type="url" value={widgetConfig.checkoutUrl || ""} onChange={(e) => updateConfig("checkoutUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/checkout" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-2">Order Tracking URL</label>
+                      <input type="url" value={widgetConfig.orderTrackingUrl || ""} onChange={(e) => updateConfig("orderTrackingUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/track-order" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-2">Support URL</label>
+                      <input type="url" value={widgetConfig.supportUrl || ""} onChange={(e) => updateConfig("supportUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/support" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 block mb-2">Order Webhook URL <span className="text-slate-600">(advanced)</span></label>
+                      <input type="url" value={widgetConfig.orderWebhookUrl || ""} onChange={(e) => updateConfig("orderWebhookUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourapi.com/orders/lookup" />
+                      <p className="text-xs text-slate-600 mt-1">If set, the AI will POST order queries here and show live order data.</p>
+                    </div>
+                  </div>
 
                   {/* Save */}
                   <div className="flex items-center gap-4">

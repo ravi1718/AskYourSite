@@ -19,5 +19,7 @@ export async function GET(request: Request) {
 
   const redirectUrl = new URL(next, requestUrl.origin);
   if (isNewUser) redirectUrl.searchParams.set("welcome", "1");
-  return NextResponse.redirect(redirectUrl);
+  const res = NextResponse.redirect(redirectUrl);
+  res.cookies.delete('ays-last-active');
+  return res;
 }

@@ -429,6 +429,115 @@
       display: block;
       object-fit: contain;
     }
+
+    .ays-products-grid {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 8px 0 4px 36px;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+    .ays-products-grid::-webkit-scrollbar { height: 4px; }
+    .ays-products-grid::-webkit-scrollbar-track { background: transparent; }
+    .ays-products-grid::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+
+    .ays-product-card {
+      flex: 0 0 155px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s;
+    }
+    .ays-product-card:hover { border-color: ${widgetConfig.primaryColor || '#3b82f6'}; }
+    .ays-product-img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      background: #0f172a;
+    }
+    .ays-product-body {
+      padding: 8px 10px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .ays-product-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: #f8fafc;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .ays-product-price {
+      font-size: 12px;
+      color: ${widgetConfig.primaryColor || '#3b82f6'};
+      font-weight: 700;
+    }
+    .ays-product-desc {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      flex: 1;
+    }
+    .ays-product-btn {
+      display: block;
+      margin: 6px 10px 10px;
+      padding: 6px 0;
+      background: ${widgetConfig.primaryColor || '#3b82f6'};
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .ays-product-btn:hover { opacity: 0.8; }
+
+    .ays-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 6px 0 2px 36px;
+    }
+    .ays-action-btn {
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.2s;
+      font-family: inherit;
+    }
+    .ays-action-btn:hover { opacity: 0.8; }
+    .ays-action-btn.primary {
+      background: ${widgetConfig.primaryColor || '#3b82f6'};
+      color: white;
+      border: none;
+    }
+    .ays-action-btn.secondary {
+      background: transparent;
+      color: ${widgetConfig.primaryColor || '#3b82f6'};
+      border: 1px solid ${widgetConfig.primaryColor || '#3b82f6'};
+    }
   `;
 
   // Inject styles
@@ -698,6 +807,75 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   };
 
+  const ACTION_ICONS = { cart: '🛒', track: '📦', support: '💬' };
+
+  const parseMarkers = (raw) => {
+    const result = { text: raw, suggestions: [], products: [], actions: [] };
+    const sugsIdx = raw.indexOf('__AYS_SUGGESTIONS__');
+    if (sugsIdx === -1) return result;
+    result.text = raw.substring(0, sugsIdx);
+    let tail = raw.substring(sugsIdx + '__AYS_SUGGESTIONS__'.length);
+
+    const prodsIdx = tail.indexOf('__AYS_PRODUCTS__');
+    const actsIdx  = tail.indexOf('__AYS_ACTIONS__');
+
+    let sugsRaw = tail;
+    if (prodsIdx !== -1) sugsRaw = tail.substring(0, prodsIdx);
+    else if (actsIdx !== -1) sugsRaw = tail.substring(0, actsIdx);
+    try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch(e) {}
+
+    if (prodsIdx !== -1) {
+      let prodsRaw = tail.substring(prodsIdx + '__AYS_PRODUCTS__'.length);
+      if (actsIdx !== -1 && actsIdx > prodsIdx) prodsRaw = prodsRaw.substring(0, actsIdx - prodsIdx - '__AYS_PRODUCTS__'.length);
+      try { result.products = JSON.parse(prodsRaw.trim()); } catch(e) {}
+    }
+    if (actsIdx !== -1) {
+      let actsRaw = tail.substring(Math.max(actsIdx, prodsIdx === -1 ? actsIdx : actsIdx) + '__AYS_ACTIONS__'.length);
+      try { result.actions = JSON.parse(actsRaw.trim()); } catch(e) {}
+    }
+    return result;
+  };
+
+  const renderProductCards = (products) => {
+    if (!products || !products.length) return;
+    const grid = document.createElement('div');
+    grid.className = 'ays-products-grid';
+    products.forEach((p) => {
+      const card = document.createElement('div');
+      card.className = 'ays-product-card';
+      card.innerHTML = `
+        ${p.image ? `<img class="ays-product-img" src="${p.image}" alt="${p.name || ''}" onerror="this.style.display='none'" />` : ''}
+        <div class="ays-product-body">
+          <div class="ays-product-name">${p.name || ''}</div>
+          ${p.price ? `<div class="ays-product-price">${p.price}</div>` : ''}
+          ${p.description ? `<div class="ays-product-desc">${p.description}</div>` : ''}
+        </div>
+        ${p.url ? `<a class="ays-product-btn" href="${p.url}" target="_blank" rel="noopener">View Product</a>` : ''}
+      `;
+      grid.appendChild(card);
+    });
+    messagesEl.appendChild(grid);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  };
+
+  const renderActions = (actions) => {
+    if (!actions || !actions.length) return;
+    const row = document.createElement('div');
+    row.className = 'ays-actions-row';
+    actions.forEach((a) => {
+      const btn = document.createElement('a');
+      btn.className = `ays-action-btn ${a.style === 'secondary' ? 'secondary' : 'primary'}`;
+      btn.href = a.url || '#';
+      btn.target = '_blank';
+      btn.rel = 'noopener';
+      const icon = ACTION_ICONS[a.icon] || '';
+      btn.innerHTML = `${icon ? `<span>${icon}</span>` : ''}<span>${a.label}</span>`;
+      row.appendChild(btn);
+    });
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  };
+
   formEl.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (isTyping) return;
@@ -760,43 +938,37 @@
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       const msgEl = addMessage('model', '');
-      const DELIMITER = '__AYS_SUGGESTIONS__';
-      let mainResponse = '';
-      let suggestionsBuffer = '';
-      let delimiterFound = false;
+      const AYS_MARKER = '__AYS_';
+      let fullResponse = '';
+      let markerFound = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
+        fullResponse += chunk;
 
-        if (delimiterFound) {
-          suggestionsBuffer += chunk;
-        } else {
-          mainResponse += chunk;
-          const delimIdx = mainResponse.indexOf(DELIMITER);
-          if (delimIdx !== -1) {
-            delimiterFound = true;
-            const cleanText = mainResponse.substring(0, delimIdx);
-            suggestionsBuffer = mainResponse.substring(delimIdx + DELIMITER.length);
-            mainResponse = cleanText;
+        if (!markerFound) {
+          const markerIdx = fullResponse.indexOf(AYS_MARKER);
+          if (markerIdx !== -1) {
+            markerFound = true;
+            msgEl.innerHTML = formatMessage(fullResponse.substring(0, markerIdx));
+          } else {
+            msgEl.innerHTML = formatMessage(fullResponse);
           }
-          msgEl.innerHTML = formatMessage(mainResponse);
           messagesEl.scrollTop = messagesEl.scrollHeight;
         }
       }
 
-      // Parse suggestions after stream fully ends
-      if (delimiterFound && suggestionsBuffer) {
-        try {
-          const parsed = JSON.parse(suggestionsBuffer.trim());
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            renderSuggestions(parsed);
-          }
-        } catch (e) { /* skip malformed suggestions */ }
-      }
+      // Parse all markers after stream ends and render rich UI
+      const parsed = parseMarkers(fullResponse);
+      msgEl.innerHTML = formatMessage(parsed.text);
+      if (parsed.suggestions.length > 0) renderSuggestions(parsed.suggestions);
+      if (parsed.products.length > 0) renderProductCards(parsed.products);
+      if (parsed.actions.length > 0) renderActions(parsed.actions);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
 
-      conversation.push({ role: 'assistant', content: mainResponse });
+      conversation.push({ role: 'assistant', content: parsed.text });
 
     } catch (err) {
       console.error("Chat error:", err);
