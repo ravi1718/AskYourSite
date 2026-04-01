@@ -5,8 +5,9 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Button } from "@/components/ui/button";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { BusinessInsights } from "@/components/dashboard/business-insights";
 
-async function getAnalytics(userId: string) {
+async function getAnalytics(userId: string, isBusinessPlan = false) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) return null;
 
@@ -146,6 +147,53 @@ async function getAnalytics(userId: string) {
       date: msg.created_at,
     }));
 
+  // Business-only analytics
+  let dailyTrend: { date: string; count: number }[] = [];
+  let hourCounts = new Array(24).fill(0);
+  let responseQualityPct = 0;
+  let leadConversionPct = 0;
+
+  if (isBusinessPlan) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const { data: recentMessages } = await supabase
+      .from("chat_messages")
+      .select("created_at, session_id")
+      .in("assistant_id", assistantIds)
+      .gte("created_at", thirtyDaysAgo)
+      .eq("role", "user");
+
+    // Group by date
+    const dateCounts: Record<string, number> = {};
+    (recentMessages ?? []).forEach((m) => {
+      const date = m.created_at.slice(0, 10);
+      dateCounts[date] = (dateCounts[date] || 0) + 1;
+    });
+    dailyTrend = Object.entries(dateCounts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    // Peak hours
+    (recentMessages ?? []).forEach((m) => {
+      hourCounts[new Date(m.created_at).getHours()]++;
+    });
+
+    // Response quality: inverse of unanswered rate
+    const totalSessionCount = uniqueSessions.size;
+    responseQualityPct = totalSessionCount > 0
+      ? Math.round(((totalSessionCount - unansweredCount) / totalSessionCount) * 100)
+      : 100;
+
+    // Lead conversion rate
+    const { data: leadsData } = await supabase
+      .from("leads")
+      .select("session_id")
+      .in("assistant_id", assistantIds);
+    const leadSessions = new Set((leadsData ?? []).map((l) => l.session_id)).size;
+    leadConversionPct = totalSessionCount > 0
+      ? Math.round((leadSessions / totalSessionCount) * 100)
+      : 0;
+  }
+
   return {
     totalConversations,
     weeklyChange: Math.round(weeklyChange * 10) / 10,
@@ -154,6 +202,10 @@ async function getAnalytics(userId: string) {
     needsAttention,
     topProduct,
     topProductMentionRate,
+    dailyTrend,
+    hourCounts,
+    responseQualityPct,
+    leadConversionPct,
   };
 }
 
@@ -167,10 +219,11 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const analytics = await getAnalytics(user.id);
-
   const { data: usageData } = await supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single();
   const usage = usageData as any;
+  const isBusinessPlan = usage?.plan_code === "business";
+
+  const analytics = await getAnalytics(user.id, isBusinessPlan);
 
   const totalConversations = analytics?.totalConversations ?? 0;
   const weeklyChange = analytics?.weeklyChange ?? 0;
@@ -352,6 +405,15 @@ export default async function DashboardPage() {
            )}
          </div>
       </section>
+
+      {isBusinessPlan && (
+        <BusinessInsights
+          dailyTrend={analytics?.dailyTrend ?? []}
+          hourCounts={analytics?.hourCounts ?? new Array(24).fill(0)}
+          responseQualityPct={analytics?.responseQualityPct ?? 0}
+          leadConversionPct={analytics?.leadConversionPct ?? 0}
+        />
+      )}
     </div>
   );
 }

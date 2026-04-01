@@ -18,7 +18,15 @@ interface ImageAttachment {
   previewUrl: string;
 }
 
-export function ChatWidget({ assistantId }: { assistantId?: string }) {
+export function ChatWidget({
+  assistantId,
+  showBranding = true,
+  leadCaptureEnabled = false,
+}: {
+  assistantId?: string;
+  showBranding?: boolean;
+  leadCaptureEnabled?: boolean;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -28,6 +36,13 @@ export function ChatWidget({ assistantId }: { assistantId?: string }) {
   const [imageAttachment, setImageAttachment] = useState<ImageAttachment | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lead capture state
+  const [leadCaptured, setLeadCaptured] = useState(false);
+  const [leadName, setLeadName] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadError, setLeadError] = useState("");
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -150,6 +165,30 @@ export function ChatWidget({ assistantId }: { assistantId?: string }) {
     }
   };
 
+  const handleLeadSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)) {
+      setLeadError("Please enter a valid email address.");
+      return;
+    }
+    setLeadError("");
+    setIsSubmittingLead(true);
+    try {
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistantId, sessionId, name: leadName || null, email: leadEmail }),
+      });
+    } catch {
+      // non-blocking — proceed even if save fails
+    } finally {
+      setIsSubmittingLead(false);
+      setLeadCaptured(true);
+    }
+  };
+
+  const showLeadForm = leadCaptureEnabled && !!assistantId && !leadCaptured;
+
   if (!isOpen) {
     return (
       <button
@@ -186,113 +225,153 @@ export function ChatWidget({ assistantId }: { assistantId?: string }) {
         </div>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="flex justify-start">
-            <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card">
-              Hi! How can I help you today?
-            </div>
+      {/* Lead Capture Form */}
+      {showLeadForm && (
+        <form onSubmit={handleLeadSubmit} className="flex-1 flex flex-col justify-center px-5 py-6 gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-white mb-1">Before we start...</h3>
+            <p className="text-xs text-slate-400">Enter your details to begin chatting.</p>
           </div>
-        )}
+          <input
+            type="text"
+            value={leadName}
+            onChange={(e) => setLeadName(e.target.value)}
+            placeholder="Your name (optional)"
+            className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+          />
+          <div>
+            <input
+              type="email"
+              value={leadEmail}
+              onChange={(e) => { setLeadEmail(e.target.value); setLeadError(""); }}
+              placeholder="Your email *"
+              required
+              className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+            />
+            {leadError && <p className="text-xs text-red-400 mt-1">{leadError}</p>}
+          </div>
+          <button
+            type="submit"
+            disabled={isSubmittingLead}
+            className="w-full py-3 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmittingLead ? "Starting..." : "Start Chat →"}
+          </button>
+        </form>
+      )}
 
-        {messages.map((msg, idx) => {
-          const isLast = idx === messages.length - 1;
-          return (
-            <div key={idx}>
-              {msg.role === "user" ? (
-                <div className="flex justify-end">
-                  <div className="bg-primary/20 border border-primary/30 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed shadow-[0_0_15px_rgba(59,130,246,0.15)]">
-                    {(msg as any).imagePreview && (
-                      <img src={(msg as any).imagePreview} alt="Uploaded" className="max-h-32 rounded-lg mb-2 object-contain" />
-                    )}
-                    {msg.content}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col">
-                  <div className="flex justify-start">
-                    <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card prose prose-invert prose-sm max-w-none">
-                      {msg.content ? (
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      ) : (
-                        <span className="flex gap-1 items-center h-4">
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
-                          <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Suggestion chips — only under the last assistant message */}
-                  {isLast && suggestions.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2 ml-1">
-                      {suggestions.map((q, i) => (
-                        <button
-                          key={i}
-                          onClick={() => handleSend(q)}
-                          className="text-xs px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-                        >
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* Chat Area */}
+      {!showLeadForm && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.length === 0 && (
+            <div className="flex justify-start">
+              <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card">
+                Hi! How can I help you today?
+              </div>
             </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
+          )}
+
+          {messages.map((msg, idx) => {
+            const isLast = idx === messages.length - 1;
+            return (
+              <div key={idx}>
+                {msg.role === "user" ? (
+                  <div className="flex justify-end">
+                    <div className="bg-primary/20 border border-primary/30 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                      {(msg as any).imagePreview && (
+                        <img src={(msg as any).imagePreview} alt="Uploaded" className="max-h-32 rounded-lg mb-2 object-contain" />
+                      )}
+                      {msg.content}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    <div className="flex justify-start">
+                      <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card prose prose-invert prose-sm max-w-none">
+                        {msg.content ? (
+                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        ) : (
+                          <span className="flex gap-1 items-center h-4">
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Suggestion chips — only under the last assistant message */}
+                    {isLast && suggestions.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                        {suggestions.map((q, i) => (
+                          <button
+                            key={i}
+                            onClick={() => handleSend(q)}
+                            className="text-xs px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div ref={messagesEndRef} />
+        </div>
+      )}
 
       {/* Input Area */}
-      <div className="p-3 bg-background border-t border-border">
-        {/* Image preview */}
-        {imageAttachment && (
-          <div className="relative inline-block mb-2 ml-1">
-            <img src={imageAttachment.previewUrl} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-border" />
+      {!showLeadForm && (
+        <div className="p-3 bg-background border-t border-border">
+          {imageAttachment && (
+            <div className="relative inline-block mb-2 ml-1">
+              <img src={imageAttachment.previewUrl} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-border" />
+              <button
+                onClick={() => setImageAttachment(null)}
+                className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </div>
+          )}
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+          <div className="relative flex items-end gap-2 rounded-xl border border-border bg-surface p-1 shadow-inner focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
             <button
-              onClick={() => setImageAttachment(null)}
-              className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 text-slate-400 hover:text-primary transition-colors shrink-0"
+              title="Upload image to search"
             >
-              <X className="h-2.5 w-2.5" />
+              <Paperclip className="h-5 w-5" />
+            </button>
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={imageAttachment ? "Add a message or send image..." : "Message..."}
+              className="w-full max-h-32 min-h-[40px] bg-transparent text-sm text-white placeholder-slate-500 border-0 focus:ring-0 resize-none py-2.5"
+              rows={1}
+              disabled={isStreaming}
+            />
+            <button
+              onClick={() => handleSend()}
+              disabled={(!input.trim() && !imageAttachment) || isStreaming}
+              className="mb-1 mr-1 p-2 rounded-lg bg-primary text-white hover:bg-blue-400 transition-colors shrink-0 shadow-glow disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Send className="h-4 w-4" />
             </button>
           </div>
-        )}
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-        <div className="relative flex items-end gap-2 rounded-xl border border-border bg-surface p-1 shadow-inner focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="p-2 text-slate-400 hover:text-primary transition-colors shrink-0"
-            title="Upload image to search"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={imageAttachment ? "Add a message or send image..." : "Message..."}
-            className="w-full max-h-32 min-h-[40px] bg-transparent text-sm text-white placeholder-slate-500 border-0 focus:ring-0 resize-none py-2.5"
-            rows={1}
-            disabled={isStreaming}
-          />
-          <button
-            onClick={() => handleSend()}
-            disabled={(!input.trim() && !imageAttachment) || isStreaming}
-            className="mb-1 mr-1 p-2 rounded-lg bg-primary text-white hover:bg-blue-400 transition-colors shrink-0 shadow-glow disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          {showBranding && (
+            <div className="mt-2 text-center">
+              <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-1">
+                Powered by <Bot className="h-3 w-3" /> AskYourSite
+              </span>
+            </div>
+          )}
         </div>
-        <div className="mt-2 text-center">
-          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold flex items-center justify-center gap-1">
-            Powered by <Bot className="h-3 w-3" /> AskYourSite
-          </span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -62,13 +62,16 @@ export async function GET(
       if (flags) featureFlags = { ...featureFlags, ...flags };
     }
 
+    const widgetConfig = assistant.widget_config || {};
+
     // Return the config merged with server-enforced feature flags
     return NextResponse.json({
-      ...(assistant.widget_config || {}),
+      ...widgetConfig,
       name: assistant.name,
-      // Server-enforced: widget reads these and respects them
-      show_branding: !featureFlags.remove_branding,
-      lead_capture_enabled: featureFlags.lead_capture,
+      // show_branding: false only if plan allows it AND the owner toggled it off
+      show_branding: !(featureFlags.remove_branding && widgetConfig.removeBranding === true),
+      // lead_capture_enabled: true only if plan allows it AND the owner toggled it on
+      lead_capture_enabled: !!(featureFlags.lead_capture && widgetConfig.leadCaptureEnabled === true),
       image_search_enabled: featureFlags.image_search,
     }, {
       status: 200,

@@ -367,6 +367,61 @@
     #ays-image-btn:hover { color: ${widgetConfig.primaryColor || '#3b82f6'}; }
     #ays-image-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; }
 
+    #ays-lead-form {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24px 20px;
+      gap: 16px;
+    }
+    #ays-lead-form h3 {
+      color: ${widgetConfig.textColor || '#ffffff'};
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+    #ays-lead-form p {
+      color: #94a3b8;
+      font-size: 13px;
+      margin: 0 0 8px;
+    }
+    .ays-lead-input {
+      width: 100%;
+      background: transparent;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: ${widgetConfig.textColor || '#ffffff'};
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    .ays-lead-input:focus { border-color: ${widgetConfig.primaryColor || '#3b82f6'}; }
+    .ays-lead-input::placeholder { color: #475569; }
+    #ays-lead-submit {
+      background: ${widgetConfig.primaryColor || '#3b82f6'};
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: inherit;
+    }
+    #ays-lead-submit:hover { background: #60a5fa; }
+    #ays-lead-submit:disabled { background: #1e293b; color: #64748b; cursor: not-allowed; }
+    #ays-lead-error {
+      color: #f87171;
+      font-size: 12px;
+      margin: -8px 0 0;
+      display: none;
+    }
+
     .ays-user-image {
       max-height: 120px;
       border-radius: 8px;
@@ -431,17 +486,39 @@
     </button>
   `;
 
-  windowEl.appendChild(headerEl);
-  windowEl.appendChild(messagesEl);
-  windowEl.appendChild(imagePreviewArea);
-  windowEl.appendChild(formEl);
-  
-  const footerEl = document.createElement('div');
-  footerEl.id = 'ays-chat-footer';
-  footerEl.innerHTML = `
-    <a href="https://askyoursite.in/" target="_blank" rel="noopener noreferrer">⚡ Powered by AskYourSite.in</a>
+  // Lead capture form (shown before chat if enabled and not yet submitted)
+  const sessionKey = 'ays_lead_' + agentId;
+  const leadAlreadySubmitted = sessionStorage.getItem(sessionKey) === '1';
+  const showLeadForm = widgetConfig.lead_capture_enabled === true && !leadAlreadySubmitted;
+
+  const leadFormEl = document.createElement('div');
+  leadFormEl.id = 'ays-lead-form';
+  leadFormEl.innerHTML = `
+    <h3>Before we start...</h3>
+    <p>Enter your details to begin chatting with our AI assistant.</p>
+    <input class="ays-lead-input" id="ays-lead-name" type="text" placeholder="Your name (optional)" autocomplete="name" />
+    <input class="ays-lead-input" id="ays-lead-email" type="email" placeholder="Your email *" autocomplete="email" required />
+    <span id="ays-lead-error">Please enter a valid email address.</span>
+    <button id="ays-lead-submit" type="button">Start Chat →</button>
   `;
-  windowEl.appendChild(footerEl);
+
+  windowEl.appendChild(headerEl);
+  if (showLeadForm) {
+    windowEl.appendChild(leadFormEl);
+  } else {
+    windowEl.appendChild(messagesEl);
+    windowEl.appendChild(imagePreviewArea);
+    windowEl.appendChild(formEl);
+  }
+  
+  if (widgetConfig.show_branding !== false) {
+    const footerEl = document.createElement('div');
+    footerEl.id = 'ays-chat-footer';
+    footerEl.innerHTML = `
+      <a href="https://askyoursite.in/" target="_blank" rel="noopener noreferrer">⚡ Powered by AskYourSite.in</a>
+    `;
+    windowEl.appendChild(footerEl);
+  }
 
   const buttonEl = document.createElement('button');
   buttonEl.id = 'ays-chat-button';
@@ -492,6 +569,47 @@
     imagePreviewArea.classList.remove('visible');
     if (imagePreviewImg) imagePreviewImg.src = '';
   });
+
+  // Lead form submission
+  if (showLeadForm) {
+    document.getElementById('ays-lead-submit').addEventListener('click', async () => {
+      const nameVal = document.getElementById('ays-lead-name').value.trim();
+      const emailVal = document.getElementById('ays-lead-email').value.trim();
+      const errorEl = document.getElementById('ays-lead-error');
+      const submitBtn = document.getElementById('ays-lead-submit');
+
+      if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+        errorEl.style.display = 'block';
+        return;
+      }
+      errorEl.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Starting...';
+
+      try {
+        await fetch(API_BASE + '/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assistantId: agentId, sessionId: crypto.randomUUID(), name: nameVal || null, email: emailVal })
+        });
+      } catch (e) { /* non-blocking — proceed even if lead save fails */ }
+
+      sessionStorage.setItem(sessionKey, '1');
+
+      // Replace lead form with chat UI
+      leadFormEl.remove();
+      windowEl.appendChild(messagesEl);
+      windowEl.appendChild(imagePreviewArea);
+      windowEl.appendChild(formEl);
+      if (widgetConfig.show_branding !== false) {
+        const brandFooter = document.createElement('div');
+        brandFooter.id = 'ays-chat-footer';
+        brandFooter.innerHTML = `<a href="https://askyoursite.in/" target="_blank" rel="noopener noreferrer">⚡ Powered by AskYourSite.in</a>`;
+        windowEl.appendChild(brandFooter);
+      }
+      document.getElementById('ays-chat-input')?.focus();
+    });
+  }
 
   const toggleChat = () => {
     isOpen = !isOpen;

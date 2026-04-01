@@ -38,7 +38,13 @@ export default async function AssistantPage({ params }: { params: Promise<{ id: 
   const { data: usageData } = await supabase
     .rpc("get_user_usage", { p_user_id: user.id } as any)
     .single();
-  const imageSearchEnabled = (usageData as any)?.feature_flags?.image_search === true;
+  const featureFlags: Record<string, boolean> = {
+    image_search: false,
+    lead_capture: false,
+    remove_branding: false,
+    csv_export: false,
+    ...((usageData as any)?.feature_flags || {}),
+  };
 
   return (
     <div className="mx-auto max-w-6xl w-full animate-fade-up px-4">
@@ -46,7 +52,8 @@ export default async function AssistantPage({ params }: { params: Promise<{ id: 
         assistant={assistant}
         sources={sources || []}
         userId={user.id}
-        imageSearchEnabled={imageSearchEnabled}
+        imageSearchEnabled={featureFlags.image_search}
+        featureFlags={featureFlags}
       />
     </div>
   );

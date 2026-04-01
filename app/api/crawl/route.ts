@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev/v1";
+const PAGE_LIMITS: Record<string, number> = { starter: 50, pro: 200, business: 500 };
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +14,20 @@ export async function POST(req: Request) {
 
     if (!process.env.FIRECRAWL_API_KEY) {
       return NextResponse.json({ error: "Missing FIRECRAWL_API_KEY" }, { status: 500 });
+    }
+
+    // Determine page limit by plan
+    let pageLimit = 50;
+    const supabase = await getSupabaseServerClient();
+    if (supabase) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: usageData } = await supabase
+          .rpc("get_user_usage", { p_user_id: user.id } as any)
+          .single();
+        const planCode = (usageData as any)?.plan_code as string | undefined;
+        if (planCode && PAGE_LIMITS[planCode]) pageLimit = PAGE_LIMITS[planCode];
+      }
     }
 
     const headers = {
@@ -45,7 +61,7 @@ export async function POST(req: Request) {
       headers,
       body: JSON.stringify({
         url,
-        limit: 50,
+        limit: pageLimit,
         scrapeOptions: {
           formats: ["markdown"]
         }

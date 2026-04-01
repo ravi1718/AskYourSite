@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Bot, BarChart2, Library, Settings } from "lucide-react";
+import { Bot, BarChart2, Library, Settings, Users } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { PageTransition } from "@/components/page-transition";
@@ -29,6 +29,7 @@ export default async function DashboardLayout({
     .single();
 
   const usage = usageData as any;
+  const featureFlags: Record<string, boolean> = { lead_capture: false, ...(usage?.feature_flags || {}) };
   const subscriptionStatus: string = usage?.subscription_status ?? "trialing";
   const trialEndsAt: string | null = usage?.trial_ends_at       ?? null;
   const isTrialing = subscriptionStatus === "trialing";
@@ -70,6 +71,12 @@ export default async function DashboardLayout({
             <Library className="h-4 w-4" />
             Knowledge Base
           </Link>
+          {featureFlags.lead_capture && (
+            <Link href="/dashboard/leads" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+              <Users className="h-4 w-4" />
+              Leads
+            </Link>
+          )}
 
           <div className="mt-8 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Account

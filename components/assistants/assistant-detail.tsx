@@ -35,7 +35,7 @@ const ROLE_OPTIONS = [
   { label: "E-Commerce Shopping", value: "ecommerce" },
 ];
 
-export function AssistantDetailClient({ assistant, sources, userId, imageSearchEnabled = false }: any) {
+export function AssistantDetailClient({ assistant, sources, userId, imageSearchEnabled = false, featureFlags = {} }: any) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"settings" | "data" | "preview" | "embed" | "appearance">("preview");
 
@@ -51,6 +51,8 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     tone: assistant.tone || "helpful",
     placeholder: "Ask me anything...",
     welcomeMessage: assistant.welcome_message || "Hi! How can I help you today?",
+    removeBranding: false,
+    leadCaptureEnabled: false,
   };
   const [widgetConfig, setWidgetConfig] = useState<Record<string, any>>({
     ...defaultConfig,
@@ -956,6 +958,53 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                     </div>
                   </div>
 
+                  {/* Feature Toggles */}
+                  {(featureFlags.remove_branding || featureFlags.lead_capture) && (
+                    <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
+                      <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Features</h3>
+
+                      {featureFlags.remove_branding && (
+                        <div
+                          onClick={() => setWidgetConfig((c: any) => ({ ...c, removeBranding: !c.removeBranding }))}
+                          className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.removeBranding ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${widgetConfig.removeBranding ? "bg-primary/20" : "bg-slate-700/50"}`}>
+                              <svg className={`h-4 w-4 transition-colors ${widgetConfig.removeBranding ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">Remove "Powered by AskYourSite"</p>
+                              <p className="text-xs text-slate-400 mt-0.5">Hide the branding footer from your widget</p>
+                            </div>
+                          </div>
+                          <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.removeBranding ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.removeBranding ? "translate-x-6" : "translate-x-0.5"}`} />
+                          </div>
+                        </div>
+                      )}
+
+                      {featureFlags.lead_capture && (
+                        <div
+                          onClick={() => setWidgetConfig((c: any) => ({ ...c, leadCaptureEnabled: !c.leadCaptureEnabled }))}
+                          className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.leadCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg transition-colors ${widgetConfig.leadCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
+                              <svg className={`h-4 w-4 transition-colors ${widgetConfig.leadCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-white">Lead Capture Form</p>
+                              <p className="text-xs text-slate-400 mt-0.5">Ask visitors for name & email before chatting.</p>
+                            </div>
+                          </div>
+                          <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.leadCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
+                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.leadCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Save */}
                   <div className="flex items-center gap-4">
                     <Button onClick={handleSaveAppearance} disabled={isSaving} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[140px]">
@@ -985,30 +1034,67 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                       )}
                       <span className="text-base font-semibold text-white">{assistant.name}</span>
                     </div>
-                    {/* Messages */}
-                    <div className="p-4 min-h-[400px] flex flex-col justify-end">
-                      <div className="flex gap-2 items-end self-start max-w-[85%]">
-                        <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center overflow-hidden mb-1" style={{ backgroundColor: `${widgetConfig.primaryColor}30` }}>
-                          {widgetConfig.logoUrl ? (
-                            <img src={widgetConfig.logoUrl} alt="Bot" className="w-full h-full object-contain bg-white" />
-                          ) : (
-                            <Bot className="h-3.5 w-3.5" style={{ color: widgetConfig.primaryColor }} />
-                          )}
+                    {/* Lead Form Preview OR Chat Preview */}
+                    {widgetConfig.leadCaptureEnabled ? (
+                      <div className="p-5 min-h-[400px] flex flex-col justify-center gap-4">
+                        <div>
+                          <p className="text-sm font-semibold mb-0.5" style={{ color: widgetConfig.textColor }}>Before we start...</p>
+                          <p className="text-xs opacity-60" style={{ color: widgetConfig.textColor }}>Enter your details to begin chatting.</p>
                         </div>
-                        <div className="rounded-xl px-3 py-2 text-sm border border-white/10" style={{ backgroundColor: `${widgetConfig.primaryColor}15`, color: widgetConfig.textColor, borderBottomLeftRadius: 4 }}>
-                          {widgetConfig.welcomeMessage || "Hi! How can I help?"}
-                        </div>
+                        <input
+                          readOnly
+                          placeholder="Your name (optional)"
+                          className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80"
+                          style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }}
+                        />
+                        <input
+                          readOnly
+                          placeholder="Your email *"
+                          className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80"
+                          style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }}
+                        />
+                        <button
+                          className="w-full py-2.5 rounded-xl text-xs font-semibold text-white"
+                          style={{ backgroundColor: widgetConfig.primaryColor }}
+                        >
+                          Start Chat →
+                        </button>
                       </div>
-                    </div>
-                    {/* Input */}
-                    <div className="px-4 pb-4">
-                      <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5" style={{ backgroundColor: `${widgetConfig.bgColor}cc` }}>
-                        <span className="text-xs flex-1 opacity-50" style={{ color: widgetConfig.textColor }}>{widgetConfig.placeholder || "Ask me anything..."}</span>
-                        <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: widgetConfig.primaryColor }}>
-                          <Send className="h-3 w-3 text-white" />
+                    ) : (
+                      <>
+                        <div className="p-4 min-h-[400px] flex flex-col justify-end">
+                          <div className="flex gap-2 items-end self-start max-w-[85%]">
+                            <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center overflow-hidden mb-1" style={{ backgroundColor: `${widgetConfig.primaryColor}30` }}>
+                              {widgetConfig.logoUrl ? (
+                                <img src={widgetConfig.logoUrl} alt="Bot" className="w-full h-full object-contain bg-white" />
+                              ) : (
+                                <Bot className="h-3.5 w-3.5" style={{ color: widgetConfig.primaryColor }} />
+                              )}
+                            </div>
+                            <div className="rounded-xl px-3 py-2 text-sm border border-white/10" style={{ backgroundColor: `${widgetConfig.primaryColor}15`, color: widgetConfig.textColor, borderBottomLeftRadius: 4 }}>
+                              {widgetConfig.welcomeMessage || "Hi! How can I help?"}
+                            </div>
+                          </div>
                         </div>
+                        <div className="px-4 pb-4">
+                          <div className="flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5" style={{ backgroundColor: `${widgetConfig.bgColor}cc` }}>
+                            <span className="text-xs flex-1 opacity-50" style={{ color: widgetConfig.textColor }}>{widgetConfig.placeholder || "Ask me anything..."}</span>
+                            <div className="h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: widgetConfig.primaryColor }}>
+                              <Send className="h-3 w-3 text-white" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Branding footer */}
+                    {!widgetConfig.removeBranding && (
+                      <div className="px-4 pb-3 text-center">
+                        <span className="text-[10px] opacity-40 uppercase tracking-widest font-semibold flex items-center justify-center gap-1" style={{ color: widgetConfig.textColor }}>
+                          <Bot className="h-2.5 w-2.5" /> Powered by AskYourSite
+                        </span>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
