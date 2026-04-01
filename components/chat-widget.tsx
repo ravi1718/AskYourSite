@@ -31,28 +31,41 @@ interface Action {
 
 function parseMarkers(raw: string): AysMarkers {
   const result: AysMarkers = { text: raw, suggestions: [], products: [], actions: [] };
-  const sugsIdx = raw.indexOf("__AYS_SUGGESTIONS__");
-  if (sugsIdx === -1) return result;
-  result.text = raw.substring(0, sugsIdx);
-  const tail = raw.substring(sugsIdx + "__AYS_SUGGESTIONS__".length);
+
+  // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
+  const MARKERS = ["__AYS_SUGGESTIONS__", "__AYS_PRODUCTS__", "__AYS_ACTIONS__"] as const;
+  const firstIdx = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
+  if (!firstIdx.length) return result;
+
+  const splitAt = Math.min(...firstIdx);
+  result.text = raw.substring(0, splitAt);
+  const tail = raw.substring(splitAt);
+
+  const sugsIdx = tail.indexOf("__AYS_SUGGESTIONS__");
+  if (sugsIdx !== -1) {
+    const afterSugs = tail.substring(sugsIdx + "__AYS_SUGGESTIONS__".length);
+    const p = afterSugs.indexOf("__AYS_PRODUCTS__");
+    const a = afterSugs.indexOf("__AYS_ACTIONS__");
+    let sugsRaw = afterSugs;
+    if (p !== -1) sugsRaw = afterSugs.substring(0, p);
+    else if (a !== -1) sugsRaw = afterSugs.substring(0, a);
+    try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch { /* skip */ }
+  }
 
   const prodsIdx = tail.indexOf("__AYS_PRODUCTS__");
-  const actsIdx  = tail.indexOf("__AYS_ACTIONS__");
-
-  let sugsRaw = tail;
-  if (prodsIdx !== -1) sugsRaw = tail.substring(0, prodsIdx);
-  else if (actsIdx !== -1) sugsRaw = tail.substring(0, actsIdx);
-  try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch { /* skip */ }
-
   if (prodsIdx !== -1) {
-    let prodsRaw = tail.substring(prodsIdx + "__AYS_PRODUCTS__".length);
-    if (actsIdx !== -1 && actsIdx > prodsIdx) prodsRaw = prodsRaw.substring(0, actsIdx - prodsIdx - "__AYS_PRODUCTS__".length);
+    const afterProds = tail.substring(prodsIdx + "__AYS_PRODUCTS__".length);
+    const a = afterProds.indexOf("__AYS_ACTIONS__");
+    const prodsRaw = a !== -1 ? afterProds.substring(0, a) : afterProds;
     try { result.products = JSON.parse(prodsRaw.trim()); } catch { /* skip */ }
   }
+
+  const actsIdx = tail.indexOf("__AYS_ACTIONS__");
   if (actsIdx !== -1) {
     const actsRaw = tail.substring(actsIdx + "__AYS_ACTIONS__".length);
     try { result.actions = JSON.parse(actsRaw.trim()); } catch { /* skip */ }
   }
+
   return result;
 }
 

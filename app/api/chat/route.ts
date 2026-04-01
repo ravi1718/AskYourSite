@@ -63,6 +63,7 @@ export async function POST(req: Request) {
     const lastUserMessage = messages[messages.length - 1]?.content;
     let contextDocs = "";
     let productImageMap = "";
+    let imageMapRawData: any[] = []; // Raw data for server-side product card injection
 
     if (supabase && lastUserMessage) {
       // Check limits before proceeding if it's a new session
@@ -125,7 +126,7 @@ export async function POST(req: Request) {
             }),
             supabase.rpc('match_image_embeddings', {
               query_embedding: queryEmbedding,
-              match_threshold: 0.45,
+              match_threshold: 0.3,
               match_count: 5,
               p_assistant_id: assistantId
             }),
@@ -142,6 +143,7 @@ export async function POST(req: Request) {
 
           if (!imageResult.error && imageResult.data && imageResult.data.length > 0) {
             console.log(`[Chat] Found ${imageResult.data.length} product images for image map`);
+            imageMapRawData = imageResult.data;
             productImageMap = imageResult.data
               .map((m: any, i: number) =>
                 `${i + 1}. image_url: ${m.metadata?.image_url || ""} | page_url: ${m.metadata?.page_url || ""} | description: ${m.content_chunk}`
@@ -403,40 +405,31 @@ For help, email support@askyoursite.in or use the chat widget on the site.
     }
 
     // Prepare system instruction with context
-    const agentBehavior = assistantId !== "preview" ? `
+    // Build action markers the server will inject based on AI response intent detection
+    const hasActionUrls = agentConfig.checkoutUrl || agentConfig.orderTrackingUrl || agentConfig.supportUrl;
 
-AGENTIC BEHAVIOR — detect user intent and append structured markers AFTER __AYS_SUGGESTIONS__:
+    const agentBehavior = assistantId !== "preview" && hasActionUrls ? `
 
-1. PRODUCT / SHOPPING INTENT (user asks to see, find, or compare products):
-   Append: __AYS_PRODUCTS__[{"name":"...","price":"...","image":"IMAGE_URL_FROM_MAP","url":"PAGE_URL_FROM_MAP","description":"..."}]
-   IMPORTANT: Only use image_url and page_url values from the PRODUCT IMAGE MAP below. If map is empty, omit __AYS_PRODUCTS__.
+AGENTIC BEHAVIOR — detect user intent and append the relevant action markers at the end of your response.
+Product cards and suggestion chips are handled automatically by the system — do NOT output __AYS_SUGGESTIONS__ or __AYS_PRODUCTS__.
 
-2. CHECKOUT / BUY INTENT (user wants to buy, place order, or go to cart):
+1. CHECKOUT / BUY INTENT (user wants to buy, place order, or go to cart):
    ${agentConfig.checkoutUrl ? `Append: __AYS_ACTIONS__[{"label":"Go to Checkout","url":"${agentConfig.checkoutUrl}","style":"primary","icon":"cart"}]` : "No checkout URL configured — skip this action."}
 
-3. ORDER TRACKING INTENT (user asks about their order status, delivery, tracking):
+2. ORDER TRACKING INTENT (user asks about their order status, delivery, tracking):
    ${agentConfig.orderTrackingUrl ? `If order data is available from the webhook, show it in your text response. Always append: __AYS_ACTIONS__[{"label":"Track Your Order","url":"${agentConfig.orderTrackingUrl}","style":"primary","icon":"track"}]` : "No order tracking URL configured. Ask the user to contact support for order status."}
 
-4. SUPPORT / HELP / COMPLAINT INTENT (user reports a problem or asks for human help):
-   ${agentConfig.supportUrl ? `Append: __AYS_ACTIONS__[{"label":"Contact Support","url":"${agentConfig.supportUrl}","style":"secondary","icon":"support"}]` : "No support URL configured — skip this action."}
-
-MARKER RULES:
-- Markers go at the very end: [text]__AYS_SUGGESTIONS__[...]__AYS_PRODUCTS__[...]__AYS_ACTIONS__[...]
-- Never mention marker names in visible text
-- Only append markers that are relevant to the current intent
-- __AYS_PRODUCTS__ items must be a JSON array even if just one item
-- __AYS_ACTIONS__ items must be a JSON array even if just one item` : "";
+3. SUPPORT / HELP / COMPLAINT INTENT (user reports a problem or asks for human help):
+   ${agentConfig.supportUrl ? `Append: __AYS_ACTIONS__[{"label":"Contact Support","url":"${agentConfig.supportUrl}","style":"secondary","icon":"support"}]` : "No support URL configured — skip this action."}` : "";
 
     const systemPrompt = `${customSystemPrompt ? customSystemPrompt + "\n\n" : ""}${assistantId === "preview" ? `You are the official AI assistant for AskYourSite (askyoursite.in). You are embedded directly on the AskYourSite landing page to help potential users understand the product and get started. Be concise, friendly, and action-oriented. Always guide users toward the next step (sign up, create assistant, embed script). If someone asks how to do something specific, give them the exact steps. Never say you don't know about AskYourSite — use the knowledge base below.` : roleInstructions[role] || roleInstructions.general}
 
 KNOWLEDGE BASE CONTEXT:
 ${contextDocs ? contextDocs : "No specific context found — answer from general expertise for this domain."}
 ${orderWebhookData}${imageContext ? `\n${imageContext}\n\nWhen image search results are found, format your response as:\n**Found a match:** [Product Name](page_url)\n![Product Image](image_url)\n\nThen describe the product briefly. If no exact match, suggest similar products from the knowledge base.` : ""}
-${productImageMap ? `\nPRODUCT IMAGE MAP (use these image_url values in __AYS_PRODUCTS__ — only use URLs from this list):\n${productImageMap}` : ""}${agentBehavior}
+${productImageMap ? `\nPRODUCT IMAGE MAP (products available in the catalog — reference these in your text when relevant):\n${productImageMap}` : ""}${agentBehavior}
 
-MANDATORY FORMAT RULE: At the very end of your response (after all content), append this on a new line with no spaces between the marker and the array:
-__AYS_SUGGESTIONS__["follow-up question 1?","follow-up question 2?","follow-up question 3?"]
-Replace the 3 questions with natural follow-ups the user would ask next. Output ONLY the marker and JSON array on that line, nothing else.`;
+Do NOT include follow-up questions in your response text. The system will add suggestion chips automatically.`;
 
     // Map messages for Gemini — attach image to the last user message if present
     const geminiContents = messages.map((msg: any, idx: number) => {
@@ -470,11 +463,12 @@ Replace the 3 questions with natural follow-ups the user would ask next. Output 
     let fullAssistantResponse = "";
 
     // Create a ReadableStream to stream text back to client
+    const query = lastUserMessage || "";
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         try {
-          // 1. Stream the main answer
+          // 1. Stream the main answer from Gemini
           for await (const chunk of responseStream) {
             if (chunk.text) {
               fullAssistantResponse += chunk.text;
@@ -482,14 +476,60 @@ Replace the 3 questions with natural follow-ups the user would ask next. Output 
             }
           }
 
+          // 2. Server-side marker injection — guaranteed, not AI-dependent
+          // Strip any markers the AI may have partially/incorrectly generated
+          const cleanText = fullAssistantResponse.replace(/__AYS_\w+__[\s\S]*/g, "").trim();
+
+          let suffix = "";
+
+          // Always add suggestion chips
+          try {
+            const sugResult = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: [{ role: "user", parts: [{ text: `Given this conversation, generate exactly 3 short follow-up questions the user might ask next. Return ONLY a JSON array of 3 strings, nothing else. No markdown, no explanation.\n\nUser asked: "${query.substring(0, 200)}"\nAssistant answered: "${cleanText.substring(0, 500)}"` }] }],
+              config: { temperature: 0.7 },
+            });
+            const sugText = sugResult.text?.trim() || "";
+            // Extract JSON array from response (handle markdown code blocks)
+            const jsonMatch = sugText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                suffix += `__AYS_SUGGESTIONS__${JSON.stringify(parsed.slice(0, 3))}`;
+              }
+            }
+          } catch (sugErr) {
+            console.warn("[Chat] Suggestion generation failed, using fallback:", sugErr);
+          }
+
+          // Fallback suggestions if generation failed
+          if (!suffix.includes("__AYS_SUGGESTIONS__")) {
+            suffix += `__AYS_SUGGESTIONS__["Tell me more","What else can you help with?","Show me other options"]`;
+          }
+
+          // Add product cards if image map was populated
+          if (imageMapRawData.length > 0 && assistantId !== "preview") {
+            const products = imageMapRawData.slice(0, 4).map((m: any) => ({
+              name: (m.content_chunk || "").split(/[|\n]/)[0]?.trim().substring(0, 80) || "Product",
+              price: "",
+              image: m.metadata?.image_url || "",
+              url: m.metadata?.page_url || "",
+              description: (m.content_chunk || "").substring(0, 120),
+            }));
+            suffix += `__AYS_PRODUCTS__${JSON.stringify(products)}`;
+            console.log(`[Chat] Injected ${products.length} product cards server-side`);
+          }
+
+          // Enqueue the markers as a final chunk
+          controller.enqueue(encoder.encode(suffix));
+
         } catch (err) {
           console.error("Streaming error", err);
           controller.enqueue(encoder.encode("\n[Error streaming response]"));
         } finally {
-          // 3. Close AFTER suggestions are enqueued
           controller.close();
 
-          // 4. Log clean response to chat_messages (strip all __AYS_* markers)
+          // Log clean response to chat_messages (strip all __AYS_* markers)
           const cleanResponse = fullAssistantResponse.replace(/__AYS_\w+__[\s\S]*/g, "").trim();
           if (supabase && cleanResponse) {
             supabase.from("chat_messages").insert({

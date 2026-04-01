@@ -672,12 +672,15 @@
     });
   }
 
-  document.getElementById('ays-image-clear').addEventListener('click', () => {
-    pendingImageBase64 = null;
-    pendingImageMimeType = null;
-    imagePreviewArea.classList.remove('visible');
-    if (imagePreviewImg) imagePreviewImg.src = '';
-  });
+  const clearBtn = document.getElementById('ays-image-clear');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      pendingImageBase64 = null;
+      pendingImageMimeType = null;
+      imagePreviewArea.classList.remove('visible');
+      if (imagePreviewImg) imagePreviewImg.src = '';
+    });
+  }
 
   // Lead form submission
   if (showLeadForm) {
@@ -716,6 +719,38 @@
         brandFooter.innerHTML = `<a href="https://askyoursite.in/" target="_blank" rel="noopener noreferrer">⚡ Powered by AskYourSite.in</a>`;
         windowEl.appendChild(brandFooter);
       }
+
+      // Wire up image-related event listeners now that elements are in the DOM
+      const clearBtnPost = document.getElementById('ays-image-clear');
+      if (clearBtnPost) {
+        clearBtnPost.addEventListener('click', () => {
+          pendingImageBase64 = null;
+          pendingImageMimeType = null;
+          imagePreviewArea.classList.remove('visible');
+          if (imagePreviewImg) imagePreviewImg.src = '';
+        });
+      }
+      const imageInputPost = document.getElementById('ays-image-input');
+      if (imageInputPost) {
+        const imgBtn = document.getElementById('ays-image-btn');
+        if (imgBtn) imgBtn.addEventListener('click', () => imageInputPost.click());
+        imageInputPost.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result;
+            const [header, base64] = dataUrl.split(',');
+            pendingImageBase64 = base64;
+            pendingImageMimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
+            imagePreviewImg.src = dataUrl;
+            imagePreviewArea.classList.add('visible');
+          };
+          reader.readAsDataURL(file);
+          e.target.value = '';
+        });
+      }
+
       document.getElementById('ays-chat-input')?.focus();
     });
   }
@@ -811,28 +846,41 @@
 
   const parseMarkers = (raw) => {
     const result = { text: raw, suggestions: [], products: [], actions: [] };
-    const sugsIdx = raw.indexOf('__AYS_SUGGESTIONS__');
-    if (sugsIdx === -1) return result;
-    result.text = raw.substring(0, sugsIdx);
-    let tail = raw.substring(sugsIdx + '__AYS_SUGGESTIONS__'.length);
+
+    // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
+    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__'];
+    const indices = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
+    if (!indices.length) return result;
+
+    const splitAt = Math.min(...indices);
+    result.text = raw.substring(0, splitAt);
+    const tail = raw.substring(splitAt);
+
+    const sugsIdx = tail.indexOf('__AYS_SUGGESTIONS__');
+    if (sugsIdx !== -1) {
+      const afterSugs = tail.substring(sugsIdx + '__AYS_SUGGESTIONS__'.length);
+      const p = afterSugs.indexOf('__AYS_PRODUCTS__');
+      const a = afterSugs.indexOf('__AYS_ACTIONS__');
+      let sugsRaw = afterSugs;
+      if (p !== -1) sugsRaw = afterSugs.substring(0, p);
+      else if (a !== -1) sugsRaw = afterSugs.substring(0, a);
+      try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch(e) {}
+    }
 
     const prodsIdx = tail.indexOf('__AYS_PRODUCTS__');
-    const actsIdx  = tail.indexOf('__AYS_ACTIONS__');
-
-    let sugsRaw = tail;
-    if (prodsIdx !== -1) sugsRaw = tail.substring(0, prodsIdx);
-    else if (actsIdx !== -1) sugsRaw = tail.substring(0, actsIdx);
-    try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch(e) {}
-
     if (prodsIdx !== -1) {
-      let prodsRaw = tail.substring(prodsIdx + '__AYS_PRODUCTS__'.length);
-      if (actsIdx !== -1 && actsIdx > prodsIdx) prodsRaw = prodsRaw.substring(0, actsIdx - prodsIdx - '__AYS_PRODUCTS__'.length);
+      const afterProds = tail.substring(prodsIdx + '__AYS_PRODUCTS__'.length);
+      const a = afterProds.indexOf('__AYS_ACTIONS__');
+      const prodsRaw = a !== -1 ? afterProds.substring(0, a) : afterProds;
       try { result.products = JSON.parse(prodsRaw.trim()); } catch(e) {}
     }
+
+    const actsIdx = tail.indexOf('__AYS_ACTIONS__');
     if (actsIdx !== -1) {
-      let actsRaw = tail.substring(Math.max(actsIdx, prodsIdx === -1 ? actsIdx : actsIdx) + '__AYS_ACTIONS__'.length);
+      const actsRaw = tail.substring(actsIdx + '__AYS_ACTIONS__'.length);
       try { result.actions = JSON.parse(actsRaw.trim()); } catch(e) {}
     }
+
     return result;
   };
 
