@@ -168,10 +168,12 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
 
   // Embed copy state
   const [copied, setCopied] = useState(false);
-  
+  const [copiedBlock, setCopiedBlock] = useState<string | null>(null);
+  const [selectedFramework, setSelectedFramework] = useState<"vanilla" | "nextjs" | "react" | "shopify">("vanilla");
+
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  const embedCode = `<script 
-  src="${origin}/embed.js" 
+  const embedCode = `<script
+  src="${origin}/embed.js"
   data-agent-id="${assistant.id}"
   async
 ></script>`;
@@ -180,6 +182,12 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     navigator.clipboard.writeText(embedCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyBlock = (key: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedBlock(key);
+    setTimeout(() => setCopiedBlock(null), 2000);
   };
 
   const handleScrapeAndIngest = async () => {
@@ -1102,33 +1110,272 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
           )}
 
           {activeTab === "embed" && (
-            <div className="animate-fade-up">
-              <div className="mb-6">
+            <div className="animate-fade-up space-y-6">
+              <div>
                 <h2 className="text-xl font-semibold text-white">Install on your website</h2>
-                <p className="text-sm text-slate-400">Add this script tag immediately before the closing <code className="text-primary bg-primary/10 px-1 rounded">&lt;/body&gt;</code> tag on your website.</p>
+                <p className="text-sm text-slate-400 mt-1">Choose your platform below to get step-by-step setup instructions.</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-6">
-                <div className="relative">
-                  <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto">
-                    <code>{embedCode}</code>
-                  </pre>
-                  <Button 
-                    onClick={copyEmbed}
-                    variant="ghost"
-                    className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2"
-                  >
-                    {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                    <span className="ml-2 text-xs">{copied ? "Copied" : "Copy code"}</span>
-                  </Button>
+              {/* Framework selector */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Choose your platform</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {([
+                    { id: "vanilla", icon: "</>", label: "Vanilla JS", desc: "Plain HTML websites" },
+                    { id: "nextjs",  icon: "▲",   label: "Next.js",   desc: "App Router or Pages Router" },
+                    { id: "react",   icon: "⚛",   label: "React",     desc: "CRA or Vite apps" },
+                    { id: "shopify", icon: "🛍",   label: "Shopify",   desc: "Storefront themes" },
+                  ] as const).map((fw) => (
+                    <button
+                      key={fw.id}
+                      onClick={() => setSelectedFramework(fw.id)}
+                      className={cn(
+                        "flex flex-col items-start gap-1.5 p-4 rounded-xl border text-left transition-all",
+                        selectedFramework === fw.id
+                          ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                          : "border-border text-slate-400 hover:border-slate-500 hover:text-white"
+                      )}
+                    >
+                      <span className="text-2xl leading-none">{fw.icon}</span>
+                      <span className="text-sm font-semibold">{fw.label}</span>
+                      <span className="text-xs opacity-70">{fw.desc}</span>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3">
-                  <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="text-sm font-semibold text-white">How it works</h4>
-                    <p className="text-sm text-slate-400 mt-1">This script asynchronously loads our chat widget bundle and connects it safely to your tailored agent. No further configuration is required.</p>
+              <div className="border-t border-border" />
+
+              {/* Vanilla JS instructions */}
+              {selectedFramework === "vanilla" && (
+                <div className="space-y-5">
+                  <p className="text-sm font-semibold text-slate-300">Setup Instructions — Vanilla JS</p>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-500 font-medium">Step 1 — Copy your embed code</p>
+                    <div className="relative">
+                      <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{embedCode}</code></pre>
+                      <Button onClick={copyEmbed} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                        {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        <span className="ml-2 text-xs">{copied ? "Copied" : "Copy code"}</span>
+                      </Button>
+                    </div>
                   </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-500 font-medium">Step 2 — Open your HTML file and paste just before <code className="text-primary bg-primary/10 px-1 rounded">&lt;/body&gt;</code></p>
+                    <div className="relative">
+                      <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{`<!DOCTYPE html>
+<html>
+  <head>...</head>
+  <body>
+    <!-- your content -->
+
+    ${embedCode}
+  </body>
+</html>`}</code></pre>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-sm text-slate-400">
+                    Step 3 — Save the file and reload your site. The chat widget appears automatically in the bottom-right corner.
+                  </div>
+                </div>
+              )}
+
+              {/* Next.js instructions */}
+              {selectedFramework === "nextjs" && (() => {
+                const appRouterCode = `// app/layout.tsx
+import Script from 'next/script'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        {children}
+        <Script
+          src="${origin}/embed.js"
+          data-agent-id="${assistant.id}"
+          strategy="lazyOnload"
+        />
+      </body>
+    </html>
+  )
+}`;
+                const pagesRouterCode = `// pages/_document.tsx
+import { Html, Head, Main, NextScript } from 'next/document'
+
+export default function Document() {
+  return (
+    <Html>
+      <Head />
+      <body>
+        <Main />
+        <NextScript />
+        <script
+          src="${origin}/embed.js"
+          data-agent-id="${assistant.id}"
+          async
+        />
+      </body>
+    </Html>
+  )
+}`;
+                return (
+                  <div className="space-y-5">
+                    <p className="text-sm font-semibold text-slate-300">Setup Instructions — Next.js</p>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 font-medium">Step 1 — Copy your agent ID</p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{assistant.id}</code></pre>
+                        <Button onClick={() => copyBlock("agentid", assistant.id)} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                          {copiedBlock === "agentid" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "agentid" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 font-medium">Step 2 — App Router: add to <code className="text-primary bg-primary/10 px-1 rounded">app/layout.tsx</code></p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{appRouterCode}</code></pre>
+                        <Button onClick={() => copyBlock("nextapp", appRouterCode)} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                          {copiedBlock === "nextapp" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "nextapp" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 font-medium">Step 2 (alternative) — Pages Router: add to <code className="text-primary bg-primary/10 px-1 rounded">pages/_document.tsx</code></p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{pagesRouterCode}</code></pre>
+                        <Button onClick={() => copyBlock("nextpages", pagesRouterCode)} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                          {copiedBlock === "nextpages" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "nextpages" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-sm text-slate-400">
+                      Step 3 — Run <code className="text-primary bg-primary/10 px-1 rounded">npm run dev</code> or deploy. The widget loads on every page automatically. The <code className="text-slate-300">strategy="lazyOnload"</code> flag ensures it doesn't block your page render.
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* React instructions */}
+              {selectedFramework === "react" && (() => {
+                const indexHtmlCode = `<!-- public/index.html -->
+<!DOCTYPE html>
+<html>
+  <head>...</head>
+  <body>
+    <div id="root"></div>
+
+    ${embedCode}
+  </body>
+</html>`;
+                const useEffectCode = `// src/App.tsx (alternative — dynamic load)
+import { useEffect } from 'react'
+
+export default function App() {
+  useEffect(() => {
+    const script = document.createElement('script')
+    script.src = '${origin}/embed.js'
+    script.setAttribute('data-agent-id', '${assistant.id}')
+    script.async = true
+    document.body.appendChild(script)
+    return () => { document.body.removeChild(script) }
+  }, [])
+
+  return <>{/* your app */}</>
+}`;
+                return (
+                  <div className="space-y-5">
+                    <p className="text-sm font-semibold text-slate-300">Setup Instructions — React (CRA / Vite)</p>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 font-medium">Option A — Paste in <code className="text-primary bg-primary/10 px-1 rounded">public/index.html</code> (recommended)</p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{indexHtmlCode}</code></pre>
+                        <Button onClick={() => copyBlock("reacthtml", indexHtmlCode)} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                          {copiedBlock === "reacthtml" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "reacthtml" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-500 font-medium">Option B — Dynamic load via <code className="text-primary bg-primary/10 px-1 rounded">useEffect</code> (no HTML file access needed)</p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{useEffectCode}</code></pre>
+                        <Button onClick={() => copyBlock("reacteffect", useEffectCode)} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                          {copiedBlock === "reacteffect" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "reacteffect" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-sm text-slate-400">
+                      Save and run your app — the widget mounts after React hydrates. Use Option A for static hosting; Option B if you're using a hosted CMS or framework that owns the HTML shell.
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Shopify instructions */}
+              {selectedFramework === "shopify" && (
+                <div className="space-y-5">
+                  <p className="text-sm font-semibold text-slate-300">Setup Instructions — Shopify</p>
+
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-500 font-medium">Step 1 — Copy your embed code</p>
+                    <div className="relative">
+                      <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto"><code>{embedCode}</code></pre>
+                      <Button onClick={copyEmbed} variant="ghost" className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2">
+                        {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        <span className="ml-2 text-xs">{copied ? "Copied" : "Copy code"}</span>
+                      </Button>
+                    </div>
+                  </div>
+
+                  <ol className="space-y-3 text-sm text-slate-400">
+                    <li className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-border text-xs flex items-center justify-center text-white font-semibold">2</span>
+                      <span>In your Shopify admin, go to <span className="text-white font-medium">Online Store → Themes</span></span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-border text-xs flex items-center justify-center text-white font-semibold">3</span>
+                      <span>Click <span className="text-white font-medium">⋯ (Actions) → Edit code</span> on your active theme</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-border text-xs flex items-center justify-center text-white font-semibold">4</span>
+                      <span>In the file tree on the left, open <span className="text-primary font-medium">Layout → theme.liquid</span></span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-border text-xs flex items-center justify-center text-white font-semibold">5</span>
+                      <span>Find <code className="text-primary bg-primary/10 px-1 rounded">&lt;/body&gt;</code> near the bottom of the file and paste your embed code just before it</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-surface border border-border text-xs flex items-center justify-center text-white font-semibold">6</span>
+                      <span>Click <span className="text-white font-medium">Save</span> — the widget is now live on your entire storefront</span>
+                    </li>
+                  </ol>
+
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-sm text-slate-400">
+                    The widget will appear on all pages of your store including product pages, the cart, and the homepage. No app installation required.
+                  </div>
+                </div>
+              )}
+
+              {/* Universal info box */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3">
+                <Bot className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-semibold text-white">Works everywhere</h4>
+                  <p className="text-sm text-slate-400 mt-1">The same agent ID works across all platforms. Your widget configuration — colors, welcome message, lead capture — is fetched automatically. No extra setup needed.</p>
                 </div>
               </div>
             </div>
