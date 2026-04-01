@@ -20,7 +20,8 @@ export function SignInPanel() {
     }
 
     const appUrl = window.location.origin;
-    const redirectTo = `${appUrl}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+    document.cookie = `ays-login-next=${encodeURIComponent(nextPath)}; path=/; max-age=300; samesite=lax`;
+    const redirectTo = `${appUrl}/auth/callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
