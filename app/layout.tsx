@@ -84,7 +84,7 @@ export default function RootLayout({
         <NavigationProgress />
         <ThemeProvider>
           {children}
-          <ChatWidget />
+          <ChatWidget assistantId={process.env.NEXT_PUBLIC_AYS_ASSISTANT_ID} />
         </ThemeProvider>
         <FaviconLoader />
       </body>

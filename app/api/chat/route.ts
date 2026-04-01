@@ -289,8 +289,70 @@ BEHAVIOR RULES:
 5. Suggest complementary products naturally at the end of your answer.`,
     };
 
+    // For the AskYourSite landing page widget ("preview" mode), inject built-in product knowledge
+    // so the bot answers correctly before any training data is added.
+    const AYS_KNOWLEDGE = `
+## About AskYourSite
+AskYourSite (askyoursite.in) turns any website into an AI-powered sales and support agent in minutes. You train it on your content, embed a small script, and it handles customer questions 24/7 — no code required.
+
+## How It Works
+1. **Create an assistant** — Sign up at askyoursite.in, go to Dashboard → Assistants → Create New.
+2. **Train it** — Add your website URL to crawl (we automatically extract all pages) or upload documents (PDF, text). Training usually takes 1–5 minutes.
+3. **Customize** — Set colors, fonts, logo, tone (Friendly / Professional / Sales / Support), welcome message, and a custom system prompt.
+4. **Embed** — Copy the one-line script from the Embed tab and paste it before the closing </body> tag on your website. The AI widget goes live instantly.
+
+## Key Features
+- **Website crawler** — Crawl your entire site (or a single page) automatically. Starter: 50 pages, Pro: 200 pages, Business: 500 pages.
+- **Document upload** — Upload PDFs, text files, and paste raw text as knowledge.
+- **Streaming AI responses** — Powered by Gemini 2.5 Flash for fast, intelligent, context-aware answers.
+- **Suggested follow-ups** — The bot automatically shows 3 follow-up question chips after each answer to guide conversations.
+- **Image search** (Pro+) — Visitors can upload a photo to find visually similar products from your catalog.
+- **Lead capture form** (Pro+) — Collect visitor name & email before the chat starts. View all leads in the Leads dashboard.
+- **Remove branding** (Pro+) — Hide the "Powered by AskYourSite" footer.
+- **Analytics dashboard** — See total conversations, weekly trends, top questions, unanswered queries, and more.
+- **Advanced analytics** (Business) — 30-day conversation trend chart, peak activity hours, response quality score, lead conversion rate.
+- **Full appearance customization** — Primary color, background color, text color, font family, logo upload, tone, role (Sales / Support / E-commerce / HR / Docs / General).
+- **Custom system prompt** — Give the AI specific instructions for your business.
+- **Multiple assistants** — Create separate bots for different products, regions, or departments.
+- **Knowledge Base tab** — Manage all trained content across all assistants from one place.
+
+## Pricing Plans
+- **Starter (Free)** — 1 assistant, 100 conversations/month, 50-page crawl, basic features.
+- **Pro** — More assistants, higher conversation limits, 200-page crawl, image search, lead capture, remove branding.
+- **Business** — Highest limits, 500-page crawl, advanced analytics, CSV export of leads, priority support.
+- All plans include the embeddable widget, streaming AI, analytics, and full appearance customization.
+
+## Getting Started (Step by Step)
+1. Visit **askyoursite.in** → click "Get Started" or "Start for free"
+2. Sign up (email or Google)
+3. Dashboard → Assistants → "Create New Assistant"
+4. Enter your website URL → click "Crawl Website" — wait 1–3 minutes
+5. Go to Appearance tab → customize colors, logo, tone
+6. Go to Embed tab → copy the script tag
+7. Paste it before </body> on your website — done!
+
+## Common Questions
+- **Does it work on any website?** Yes — WordPress, Shopify, Webflow, custom HTML, any platform.
+- **How accurate are the answers?** The AI answers based solely on your trained content, so accuracy depends on the quality and completeness of your training data.
+- **Can I update the knowledge base?** Yes — add more URLs, re-crawl, or upload new documents anytime.
+- **What language does it support?** It can respond in the same language the visitor uses.
+- **Is there a free plan?** Yes — Starter is free and includes the core features.
+- **How do I see who chatted?** Go to Dashboard → Analytics for conversation stats. Enable Lead Capture (Pro+) to collect emails.
+- **Can I use my own logo?** Yes — upload a logo in the Appearance tab.
+- **How do I remove the "Powered by AskYourSite" badge?** Toggle "Remove Branding" in the Appearance tab (Pro+ plan required).
+
+## Support
+For help, email support@askyoursite.in or use the chat widget on the site.
+`.trim();
+
+    if (assistantId === "preview" && !contextDocs) {
+      contextDocs = AYS_KNOWLEDGE;
+    } else if (assistantId === "preview") {
+      contextDocs = AYS_KNOWLEDGE + "\n\n" + contextDocs;
+    }
+
     // Prepare system instruction with context
-    const systemPrompt = `${customSystemPrompt ? customSystemPrompt + "\n\n" : ""}${roleInstructions[role] || roleInstructions.general}
+    const systemPrompt = `${customSystemPrompt ? customSystemPrompt + "\n\n" : ""}${assistantId === "preview" ? `You are the official AI assistant for AskYourSite (askyoursite.in). You are embedded directly on the AskYourSite landing page to help potential users understand the product and get started. Be concise, friendly, and action-oriented. Always guide users toward the next step (sign up, create assistant, embed script). If someone asks how to do something specific, give them the exact steps. Never say you don't know about AskYourSite — use the knowledge base below.` : roleInstructions[role] || roleInstructions.general}
 
 KNOWLEDGE BASE CONTEXT:
 ${contextDocs ? contextDocs : "No specific context found — answer from general expertise for this domain."}
