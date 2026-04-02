@@ -301,6 +301,23 @@ export default function Home() {
           No credit card required · Setup in 2 minutes
         </p>
 
+        {/* Product Hunt badge */}
+        <div className="animate-fade-up delay-300 mt-5">
+          <a
+            href="https://www.producthunt.com/products/askyoursite?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-askyoursite"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <img
+              alt="AskYourSite - AI agents for websites that answer questions & recommend | Product Hunt"
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1114009&theme=dark&t=1775116559896"
+              width={250}
+              height={54}
+              style={{ display: "inline-block" }}
+            />
+          </a>
+        </div>
+
         {/* Integration Hub */}
         <div className="animate-fade-up delay-500 mt-20 w-full">
           <p className="text-xs font-medium uppercase tracking-widest text-slate-600 mb-8">
