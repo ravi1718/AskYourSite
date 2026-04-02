@@ -265,7 +265,7 @@ export default function Home() {
         <div className="animate-fade-up mb-8">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
             <Zap className="h-3 w-3 fill-current" />
-            AskYourSite 2.0 is now live
+            AskYourSite is now live
           </span>
         </div>
 
@@ -298,7 +298,7 @@ export default function Home() {
 
         {/* Trust line */}
         <p className="animate-fade-up delay-300 mt-6 text-xs text-slate-600">
-          No credit card required · Free forever plan · Setup in 2 minutes
+          No credit card required · Setup in 2 minutes
         </p>
 
         {/* Integration Hub */}
@@ -743,7 +743,7 @@ export default function Home() {
           <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 text-slate-400">7-day free trial on every plan. No credit card required.</p>
+          <p className="mt-4 text-slate-400">7-day free trial on Pro plan. No credit card required.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

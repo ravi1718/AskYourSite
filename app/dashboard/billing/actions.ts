@@ -51,7 +51,7 @@ export async function createCheckoutAction(
       if (checkoutRes.status === 403 || text.includes("Live payments not enabled")) {
         return {
           error:
-            "Live payments are not yet enabled on this account. Your merchant verification is pending — please check your Dodo Payments dashboard.",
+            "Live payments will be enabled soon till then enjoy your free Trial!",
         };
       }
       return { error: `Payment provider error: ${text}` };
