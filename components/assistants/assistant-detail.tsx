@@ -62,8 +62,9 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     ...defaultConfig,
     ...(assistant.widget_config || {}),
   });
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingSection, setSavingSection] = useState<number | null>(null);
   const [saveResult, setSaveResult] = useState<string | null>(null);
+  const [saveResultSection, setSaveResultSection] = useState<number | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
@@ -72,9 +73,10 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     setSaveResult(null);
   };
 
-  const handleSaveAppearance = async () => {
-    setIsSaving(true);
+  const handleSaveAppearance = async (section: number) => {
+    setSavingSection(section);
     setSaveResult(null);
+    setSaveResultSection(null);
     try {
       const res = await fetch("/api/assistants/update", {
         method: "POST",
@@ -89,11 +91,13 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
-      setSaveResult("Appearance saved successfully!");
+      setSaveResult("Saved!");
+      setSaveResultSection(section);
     } catch (err: any) {
       setSaveResult(`Error: ${err.message}`);
+      setSaveResultSection(section);
     } finally {
-      setIsSaving(false);
+      setSavingSection(null);
     }
   };
 
@@ -451,7 +455,13 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
         // Parse suggestions after stream fully ends
         if (delimiterFound && suggestionsBuffer) {
           try {
-            const parsed = JSON.parse(suggestionsBuffer.trim());
+            // Strip any trailing __AYS_PRODUCTS__ / __AYS_ACTIONS__ markers so JSON.parse doesn't fail
+            let sugsRaw = suggestionsBuffer.trim();
+            const p = sugsRaw.indexOf('__AYS_PRODUCTS__');
+            const a = sugsRaw.indexOf('__AYS_ACTIONS__');
+            const end = Math.min(p !== -1 ? p : Infinity, a !== -1 ? a : Infinity);
+            if (end !== Infinity) sugsRaw = sugsRaw.substring(0, end).trim();
+            const parsed = JSON.parse(sugsRaw);
             if (Array.isArray(parsed) && parsed.length > 0) setChatSuggestions(parsed);
           } catch { /* malformed — skip */ }
         }
@@ -862,201 +872,273 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
               </div>
 
               <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-                {/* Config Controls */}
-                <div className="space-y-6">
-                  {/* Colors */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Colors</h3>
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-2">Primary Color</label>
-                        <div className="flex items-center gap-2">
-                          <input type="color" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                          <input type="text" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                        </div>
+                {/* Left: three named sections */}
+                <div className="space-y-10">
+
+                  {/* ── Section 1: Look & Feel ── */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
+                      <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400 block mb-2">Background</label>
-                        <div className="flex items-center gap-2">
-                          <input type="color" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                          <input type="text" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-2">Text Color</label>
-                        <div className="flex items-center gap-2">
-                          <input type="color" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                          <input type="text" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                        </div>
+                        <h3 className="text-base font-semibold text-white">Look & Feel</h3>
+                        <p className="text-xs text-slate-500">Colors, fonts, tone, and chat messages</p>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Role */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Assistant Role</h3>
-                    <p className="text-xs text-slate-400">Defines how the AI behaves — its persona, reasoning style, and how it handles questions outside the knowledge base.</p>
-                    <select
-                      value={widgetConfig.role || "general"}
-                      onChange={(e) => updateConfig("role", e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer"
-                    >
-                      {ROLE_OPTIONS.map((r) => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
-                  </div>
+                    <div className="space-y-5">
+                      {/* Colors */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Colors</h4>
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-2">Primary Color</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
+                              <input type="text" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-2">Background</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
+                              <input type="text" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-2">Text Color</label>
+                            <div className="flex items-center gap-2">
+                              <input type="color" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
+                              <input type="text" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Font & Tone */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Font & Tone</h3>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-2">Font Family</label>
-                        <select value={widgetConfig.fontFamily} onChange={(e) => updateConfig("fontFamily", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
-                          {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                      {/* Role */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Assistant Role</h4>
+                        <p className="text-xs text-slate-500">Defines the AI's persona and how it handles questions outside the knowledge base.</p>
+                        <select value={widgetConfig.role || "general"} onChange={(e) => updateConfig("role", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
+                          {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="text-xs text-slate-400 block mb-2">Tone</label>
-                        <select value={widgetConfig.tone} onChange={(e) => updateConfig("tone", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
-                          {TONE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Messages */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Messages</h3>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Welcome Message</label>
-                      <input type="text" value={widgetConfig.welcomeMessage} onChange={(e) => updateConfig("welcomeMessage", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Hi! How can I help you today?" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Input Placeholder</label>
-                      <input type="text" value={widgetConfig.placeholder} onChange={(e) => updateConfig("placeholder", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Ask me anything..." />
-                    </div>
-                  </div>
-
-                  {/* System Prompt */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">System Prompt</h3>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Custom instructions for the AI (prepended to the default prompt)</label>
-                      <textarea value={widgetConfig.systemPrompt} onChange={(e) => updateConfig("systemPrompt", e.target.value)} rows={4} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 resize-none" placeholder="e.g., Always greet the user by name. Focus on upselling premium products..." />
-                    </div>
-                  </div>
-
-                  {/* Logo Upload */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Widget Logo</h3>
-                    <div className="flex items-center gap-4">
-                      {widgetConfig.logoUrl ? (
-                        <img src={widgetConfig.logoUrl} alt="Widget logo" className="h-14 w-14 rounded-xl object-cover border border-border" />
-                      ) : (
-                        <div className="h-14 w-14 rounded-xl bg-background border border-dashed border-border flex items-center justify-center">
-                          <Bot className="h-6 w-6 text-slate-600" />
+                      {/* Font & Tone */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Font & Tone</h4>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-2">Font Family</label>
+                            <select value={widgetConfig.fontFamily} onChange={(e) => updateConfig("fontFamily", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
+                              {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-400 block mb-2">Tone</label>
+                            <select value={widgetConfig.tone} onChange={(e) => updateConfig("tone", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
+                              {TONE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            </select>
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
-                        <Button onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo} className="bg-primary hover:bg-blue-500 text-white gap-2 text-xs px-4 py-2 h-auto">
-                          {isUploadingLogo ? <RefreshCcw className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                          {isUploadingLogo ? "Uploading..." : "Upload Logo"}
+                      </div>
+
+                      {/* Messages */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Messages</h4>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Welcome Message</label>
+                          <input type="text" value={widgetConfig.welcomeMessage} onChange={(e) => updateConfig("welcomeMessage", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Hi! How can I help you today?" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Input Placeholder</label>
+                          <input type="text" value={widgetConfig.placeholder} onChange={(e) => updateConfig("placeholder", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Ask me anything..." />
+                        </div>
+                      </div>
+
+                      {/* Section 1 Save */}
+                      <div className="flex items-center gap-4">
+                        <Button onClick={() => handleSaveAppearance(1)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[160px]">
+                          {savingSection === 1 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          {savingSection === 1 ? "Saving..." : "Save Look & Feel"}
                         </Button>
-                        <p className="text-xs text-slate-500 mt-1">PNG, JPG, or SVG. Recommended 64×64px.</p>
+                        {saveResultSection === 1 && saveResult && (
+                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
+                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Feature Toggles */}
-                  {(featureFlags.remove_branding || featureFlags.lead_capture) && (
-                    <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
-                      <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Features</h3>
+                  {/* ── Section 2: Content & Branding ── */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
+                      <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-semibold text-white">Content & Branding</h3>
+                        <p className="text-xs text-slate-500">System prompt, logo, and feature toggles</p>
+                      </div>
+                    </div>
 
-                      {featureFlags.remove_branding && (
-                        <div
-                          onClick={() => setWidgetConfig((c: any) => ({ ...c, removeBranding: !c.removeBranding }))}
-                          className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.removeBranding ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg transition-colors ${widgetConfig.removeBranding ? "bg-primary/20" : "bg-slate-700/50"}`}>
-                              <svg className={`h-4 w-4 transition-colors ${widgetConfig.removeBranding ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                    <div className="space-y-5">
+                      {/* System Prompt */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">System Prompt</h4>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Custom instructions prepended to the AI's default prompt</label>
+                          <textarea value={widgetConfig.systemPrompt} onChange={(e) => updateConfig("systemPrompt", e.target.value)} rows={5} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 resize-none" placeholder="e.g., Always greet the user by name. Focus on upselling premium products..." />
+                        </div>
+                      </div>
+
+                      {/* Logo Upload */}
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Widget Logo</h4>
+                        <div className="flex items-center gap-4">
+                          {widgetConfig.logoUrl ? (
+                            <img src={widgetConfig.logoUrl} alt="Widget logo" className="h-14 w-14 rounded-xl object-cover border border-border" />
+                          ) : (
+                            <div className="h-14 w-14 rounded-xl bg-background border border-dashed border-border flex items-center justify-center">
+                              <Bot className="h-6 w-6 text-slate-600" />
                             </div>
-                            <div>
-                              <p className="text-sm font-medium text-white">Remove "Powered by AskYourSite"</p>
-                              <p className="text-xs text-slate-400 mt-0.5">Hide the branding footer from your widget</p>
+                          )}
+                          <div>
+                            <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
+                            <Button onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo} className="bg-primary hover:bg-blue-500 text-white gap-2 text-xs px-4 py-2 h-auto">
+                              {isUploadingLogo ? <RefreshCcw className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                              {isUploadingLogo ? "Uploading..." : "Upload Logo"}
+                            </Button>
+                            <p className="text-xs text-slate-500 mt-1">PNG, JPG, or SVG. Recommended 64×64px.</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Feature Toggles */}
+                      {(featureFlags.remove_branding || featureFlags.lead_capture) && (
+                        <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
+                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Features</h4>
+
+                          {featureFlags.remove_branding && (
+                            <div
+                              onClick={() => setWidgetConfig((c: any) => ({ ...c, removeBranding: !c.removeBranding }))}
+                              className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.removeBranding ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg transition-colors ${widgetConfig.removeBranding ? "bg-primary/20" : "bg-slate-700/50"}`}>
+                                  <svg className={`h-4 w-4 transition-colors ${widgetConfig.removeBranding ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-white">Remove "Powered by AskYourSite"</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">Hide the branding footer from your widget</p>
+                                </div>
+                              </div>
+                              <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.removeBranding ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
+                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.removeBranding ? "translate-x-6" : "translate-x-0.5"}`} />
+                              </div>
                             </div>
-                          </div>
-                          <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.removeBranding ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
-                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.removeBranding ? "translate-x-6" : "translate-x-0.5"}`} />
-                          </div>
+                          )}
+
+                          {featureFlags.lead_capture && (
+                            <div
+                              onClick={() => setWidgetConfig((c: any) => ({ ...c, leadCaptureEnabled: !c.leadCaptureEnabled }))}
+                              className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.leadCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg transition-colors ${widgetConfig.leadCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
+                                  <svg className={`h-4 w-4 transition-colors ${widgetConfig.leadCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-white">Lead Capture Form</p>
+                                  <p className="text-xs text-slate-400 mt-0.5">Ask visitors for name & email before chatting.</p>
+                                </div>
+                              </div>
+                              <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.leadCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
+                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.leadCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {featureFlags.lead_capture && (
-                        <div
-                          onClick={() => setWidgetConfig((c: any) => ({ ...c, leadCaptureEnabled: !c.leadCaptureEnabled }))}
-                          className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.leadCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2 rounded-lg transition-colors ${widgetConfig.leadCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
-                              <svg className={`h-4 w-4 transition-colors ${widgetConfig.leadCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-white">Lead Capture Form</p>
-                              <p className="text-xs text-slate-400 mt-0.5">Ask visitors for name & email before chatting.</p>
-                            </div>
-                          </div>
-                          <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.leadCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
-                            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.leadCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
-                          </div>
+                      {/* Section 2 Save */}
+                      <div className="flex items-center gap-4">
+                        <Button onClick={() => handleSaveAppearance(2)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[180px]">
+                          {savingSection === 2 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          {savingSection === 2 ? "Saving..." : "Save Content & Branding"}
+                        </Button>
+                        {saveResultSection === 2 && saveResult && (
+                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
+                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Section 3: Agent Features [BETA] ── */}
+                  <div>
+                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
+                      <div className="h-7 w-7 rounded-lg bg-yellow-400/10 flex items-center justify-center">
+                        <svg className="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-semibold text-white">Agent Features</h3>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400/20 text-yellow-400 uppercase tracking-wider">Beta</span>
                         </div>
-                      )}
+                        <p className="text-xs text-slate-500">AI-powered action buttons and live order data integration</p>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Agent Configuration */}
-                  <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                    <div>
-                      <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Agent Configuration</h3>
-                      <p className="text-xs text-slate-400 mt-1">Provide URLs so the AI can direct customers to the right place with action buttons.</p>
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Checkout URL</label>
-                      <input type="url" value={widgetConfig.checkoutUrl || ""} onChange={(e) => updateConfig("checkoutUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/checkout" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Order Tracking URL</label>
-                      <input type="url" value={widgetConfig.orderTrackingUrl || ""} onChange={(e) => updateConfig("orderTrackingUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/track-order" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Support URL</label>
-                      <input type="url" value={widgetConfig.supportUrl || ""} onChange={(e) => updateConfig("supportUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/support" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-slate-400 block mb-2">Order Webhook URL <span className="text-slate-600">(advanced)</span></label>
-                      <input type="url" value={widgetConfig.orderWebhookUrl || ""} onChange={(e) => updateConfig("orderWebhookUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourapi.com/orders/lookup" />
-                      <p className="text-xs text-slate-600 mt-1">If set, the AI will POST order queries here and show live order data.</p>
+                    <div className="space-y-5">
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Action URLs</h4>
+                          <p className="text-xs text-slate-500 mt-1">When configured, the AI automatically shows action buttons when it detects buyer intent.</p>
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Checkout URL</label>
+                          <input type="url" value={widgetConfig.checkoutUrl || ""} onChange={(e) => updateConfig("checkoutUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/checkout" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Order Tracking URL</label>
+                          <input type="url" value={widgetConfig.orderTrackingUrl || ""} onChange={(e) => updateConfig("orderTrackingUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/track-order" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-slate-400 block mb-2">Support URL</label>
+                          <input type="url" value={widgetConfig.supportUrl || ""} onChange={(e) => updateConfig("supportUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/support" />
+                        </div>
+                      </div>
+
+                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
+                        <div>
+                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Order Webhook <span className="text-slate-600 normal-case font-normal">(advanced)</span></h4>
+                          <p className="text-xs text-slate-500 mt-1">The AI will POST order queries to this endpoint and show live order data in its response.</p>
+                        </div>
+                        <input type="url" value={widgetConfig.orderWebhookUrl || ""} onChange={(e) => updateConfig("orderWebhookUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourapi.com/orders/lookup" />
+                      </div>
+
+                      {/* Section 3 Save */}
+                      <div className="flex items-center gap-4">
+                        <Button onClick={() => handleSaveAppearance(3)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[180px]">
+                          {savingSection === 3 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                          {savingSection === 3 ? "Saving..." : "Save Agent Config"}
+                        </Button>
+                        {saveResultSection === 3 && saveResult && (
+                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
+                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Save */}
-                  <div className="flex items-center gap-4">
-                    <Button onClick={handleSaveAppearance} disabled={isSaving} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[140px]">
-                      {isSaving ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      {isSaving ? "Saving..." : "Save Appearance"}
-                    </Button>
-                    {saveResult && (
-                      <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
-                        {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
-                      </span>
-                    )}
-                  </div>
                 </div>
 
-                {/* Live Preview */}
+                {/* Live Preview — sticky on right, visible for all 3 sections */}
                 <div className="lg:sticky lg:top-8 self-start">
                   <h3 className="text-sm font-semibold text-white mb-3">Live Preview</h3>
                   <div className="rounded-2xl border border-border overflow-hidden shadow-card" style={{ backgroundColor: widgetConfig.bgColor, fontFamily: widgetConfig.fontFamily }}>
@@ -1078,24 +1160,9 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                           <p className="text-sm font-semibold mb-0.5" style={{ color: widgetConfig.textColor }}>Before we start...</p>
                           <p className="text-xs opacity-60" style={{ color: widgetConfig.textColor }}>Enter your details to begin chatting.</p>
                         </div>
-                        <input
-                          readOnly
-                          placeholder="Your name (optional)"
-                          className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80"
-                          style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }}
-                        />
-                        <input
-                          readOnly
-                          placeholder="Your email *"
-                          className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80"
-                          style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }}
-                        />
-                        <button
-                          className="w-full py-2.5 rounded-xl text-xs font-semibold text-white"
-                          style={{ backgroundColor: widgetConfig.primaryColor }}
-                        >
-                          Start Chat →
-                        </button>
+                        <input readOnly placeholder="Your name (optional)" className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80" style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }} />
+                        <input readOnly placeholder="Your email *" className="w-full rounded-xl px-3 py-2.5 text-xs border border-white/10 outline-none opacity-80" style={{ backgroundColor: `${widgetConfig.bgColor}cc`, color: widgetConfig.textColor }} />
+                        <button className="w-full py-2.5 rounded-xl text-xs font-semibold text-white" style={{ backgroundColor: widgetConfig.primaryColor }}>Start Chat →</button>
                       </div>
                     ) : (
                       <>
@@ -1123,7 +1190,6 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                         </div>
                       </>
                     )}
-
                     {/* Branding footer */}
                     {!widgetConfig.removeBranding && (
                       <div className="px-4 pb-3 text-center">

@@ -150,6 +150,19 @@ export async function POST(req: Request) {
               )
               .join("\n");
           }
+
+          // Fallback: if no image embeddings matched, build product map from text results that have page_url
+          // This ensures generic queries ("show me some products") still produce clickable markdown links
+          if (imageMapRawData.length === 0 && textResult.data && textResult.data.length > 0) {
+            const textWithUrls = (textResult.data as any[]).filter((m: any) => m.metadata?.page_url);
+            if (textWithUrls.length > 0) {
+              console.log(`[Chat] No image embeddings matched — using ${textWithUrls.length} text results with page_url for product map`);
+              imageMapRawData = textWithUrls;
+              productImageMap = textWithUrls.slice(0, 5).map((m: any, i: number) =>
+                `${i + 1}. page_url: ${m.metadata.page_url} | description: ${m.content_chunk}`
+              ).join("\n");
+            }
+          }
         } else {
           console.warn("[Chat] No query embedding returned from Gemini");
         }
@@ -427,9 +440,9 @@ Product cards and suggestion chips are handled automatically by the system — d
 KNOWLEDGE BASE CONTEXT:
 ${contextDocs ? contextDocs : "No specific context found — answer from general expertise for this domain."}
 ${orderWebhookData}${imageContext ? `\n${imageContext}\n\nWhen image search results are found, format your response as:\n**Found a match:** [Product Name](page_url)\n![Product Image](image_url)\n\nThen describe the product briefly. If no exact match, suggest similar products from the knowledge base.` : ""}
-${productImageMap ? `\nPRODUCT IMAGE MAP (products available in the catalog — reference these in your text when relevant):\n${productImageMap}` : ""}${agentBehavior}
+${productImageMap ? `\nPRODUCT IMAGE MAP (products available in the catalog):\nIMPORTANT: When you mention any product from this list in your response, format it as a markdown link using its page_url, like: [Product Name](page_url). Always link product names — never mention them as plain text.\n${productImageMap}` : ""}${agentBehavior}
 
-Do NOT include follow-up questions in your response text. The system will add suggestion chips automatically.`;
+RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an article. Maximum 3-4 short sentences per response. For product lists, use a short bullet point per product (name as a link + one key detail). Do not write long paragraphs. Never include follow-up questions in your response — the system adds suggestion chips automatically.`;
 
     // Map messages for Gemini — attach image to the last user message if present
     const geminiContents = messages.map((msg: any, idx: number) => {
@@ -477,38 +490,29 @@ Do NOT include follow-up questions in your response text. The system will add su
           }
 
           // 2. Server-side marker injection — guaranteed, not AI-dependent
-          // Strip any markers the AI may have partially/incorrectly generated
-          const cleanText = fullAssistantResponse.replace(/__AYS_\w+__[\s\S]*/g, "").trim();
-
           let suffix = "";
 
-          // Always add suggestion chips
-          try {
-            const sugResult = await ai.models.generateContent({
-              model: "gemini-2.5-flash",
-              contents: [{ role: "user", parts: [{ text: `Given this conversation, generate exactly 3 short follow-up questions the user might ask next. Return ONLY a JSON array of 3 strings, nothing else. No markdown, no explanation.\n\nUser asked: "${query.substring(0, 200)}"\nAssistant answered: "${cleanText.substring(0, 500)}"` }] }],
-              config: { temperature: 0.7 },
-            });
-            const sugText = sugResult.text?.trim() || "";
-            // Extract JSON array from response (handle markdown code blocks)
-            const jsonMatch = sugText.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                suffix += `__AYS_SUGGESTIONS__${JSON.stringify(parsed.slice(0, 3))}`;
-              }
-            }
-          } catch (sugErr) {
-            console.warn("[Chat] Suggestion generation failed, using fallback:", sugErr);
+          // Deterministic suggestions — no async API call, guaranteed to always work
+          let suggestions: string[];
+          if (imageMapRawData.length > 0) {
+            const firstName = (imageMapRawData[0]?.content_chunk || "")
+              .split(/[|\n]/)[0]?.trim().substring(0, 35) || "this product";
+            suggestions = [
+              `Tell me more about ${firstName}`,
+              "What are the prices?",
+              "Do you have other options?",
+            ];
+          } else if (/price|cost|cheap|affordable/i.test(query)) {
+            suggestions = ["Do you have discounts?", "What are the payment options?", "Show me more products"];
+          } else if (/return|refund|exchange/i.test(query)) {
+            suggestions = ["How long does shipping take?", "Can I track my order?", "Contact support"];
+          } else {
+            suggestions = ["Tell me more", "Show me some products", "What else can you help with?"];
           }
+          suffix += `__AYS_SUGGESTIONS__${JSON.stringify(suggestions)}`;
 
-          // Fallback suggestions if generation failed
-          if (!suffix.includes("__AYS_SUGGESTIONS__")) {
-            suffix += `__AYS_SUGGESTIONS__["Tell me more","What else can you help with?","Show me other options"]`;
-          }
-
-          // Add product cards if image map was populated
-          if (imageMapRawData.length > 0 && assistantId !== "preview") {
+          // Add product cards if image map was populated (works in Playground too)
+          if (imageMapRawData.length > 0) {
             const products = imageMapRawData.slice(0, 4).map((m: any) => ({
               name: (m.content_chunk || "").split(/[|\n]/)[0]?.trim().substring(0, 80) || "Product",
               price: "",

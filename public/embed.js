@@ -661,11 +661,22 @@
       const reader = new FileReader();
       reader.onload = () => {
         const dataUrl = reader.result;
-        const [header, base64] = dataUrl.split(',');
-        pendingImageBase64 = base64;
-        pendingImageMimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-        imagePreviewImg.src = dataUrl;
-        imagePreviewArea.classList.add('visible');
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 800;
+          const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          const [, b64] = compressed.split(',');
+          pendingImageBase64 = b64;
+          pendingImageMimeType = 'image/jpeg';
+          imagePreviewImg.src = compressed;
+          imagePreviewArea.classList.add('visible');
+        };
+        img.src = dataUrl;
       };
       reader.readAsDataURL(file);
       e.target.value = '';
@@ -740,11 +751,23 @@
           const reader = new FileReader();
           reader.onload = () => {
             const dataUrl = reader.result;
-            const [header, base64] = dataUrl.split(',');
-            pendingImageBase64 = base64;
-            pendingImageMimeType = header.match(/:(.*?);/)?.[1] || 'image/jpeg';
-            imagePreviewImg.src = dataUrl;
-            imagePreviewArea.classList.add('visible');
+            const img = new Image();
+            img.onload = () => {
+              const MAX = 800;
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.round(img.width * scale);
+              canvas.height = Math.round(img.height * scale);
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              const compressed = canvas.toDataURL('image/jpeg', 0.75);
+              const [, b64] = compressed.split(',');
+              pendingImageBase64 = b64;
+              pendingImageMimeType = 'image/jpeg';
+              const thumb = document.getElementById('ays-image-thumb');
+              if (thumb) thumb.src = compressed;
+              imagePreviewArea.classList.add('visible');
+            };
+            img.src = dataUrl;
           };
           reader.readAsDataURL(file);
           e.target.value = '';
@@ -937,7 +960,8 @@
     pendingImageBase64 = null;
     pendingImageMimeType = null;
     imagePreviewArea.classList.remove('visible');
-    imagePreviewImg.src = '';
+    const thumb = document.getElementById('ays-image-thumb');
+    if (thumb) thumb.src = '';
 
     const userText = text || '🔍 Image search';
     input.value = '';
