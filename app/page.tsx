@@ -750,7 +750,7 @@ export default function Home() {
           {[
             {
               name: "Starter",
-              price: "$29",
+              price: "$20",
               period: "/mo",
               desc: "Perfect to get started",
               features: [
@@ -793,7 +793,7 @@ export default function Home() {
               features: [
                 "10 chatbots",
                 "5,000 conversations / mo",
-                "Unlimited URL + doc training",
+                "~500 pages training",
                 "Image-based product search",
                 "Advanced analytics + insights",
                 "Lead capture + CSV export",
