@@ -2,6 +2,14 @@
 
 import { Webhooks } from "@dodopayments/nextjs";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/resend";
+import { getUserInfo } from "@/lib/email/get-user-info";
+import {
+  subscriptionActivatedEmail,
+  subscriptionRenewedEmail,
+  subscriptionCancelledEmail,
+  paymentFailedEmail,
+} from "@/lib/email/templates";
 
 const PRODUCT_PLAN_MAP: Record<string, string> = {
   [process.env.DODO_PRODUCT_ID_STARTER ?? ""]: "starter",
@@ -82,13 +90,14 @@ export const POST = Webhooks({
       ? new Date(data.next_billing_date)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    await activatePlan(
-      userId,
-      planCode,
-      data.customer?.customer_id ?? "",
-      data.subscription_id ?? "",
-      periodEnd,
-    );
+    await activatePlan(userId, planCode, data.customer?.customer_id ?? "", data.subscription_id ?? "", periodEnd);
+
+    const user = await getUserInfo(userId);
+    if (user) {
+      const planName = planCode.charAt(0).toUpperCase() + planCode.slice(1);
+      const nextDate = periodEnd.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      await sendEmail(user.email, `Your ${planName} plan is now active 🎉`, subscriptionActivatedEmail(user.name, planName, nextDate));
+    }
   },
 
   onSubscriptionRenewed: async (payload) => {
@@ -101,13 +110,14 @@ export const POST = Webhooks({
       ? new Date(data.next_billing_date)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    await activatePlan(
-      userId,
-      planCode,
-      data.customer?.customer_id ?? "",
-      data.subscription_id ?? "",
-      periodEnd,
-    );
+    await activatePlan(userId, planCode, data.customer?.customer_id ?? "", data.subscription_id ?? "", periodEnd);
+
+    const user = await getUserInfo(userId);
+    if (user) {
+      const planName = planCode.charAt(0).toUpperCase() + planCode.slice(1);
+      const nextDate = periodEnd.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      await sendEmail(user.email, "AskYourSite subscription renewed", subscriptionRenewedEmail(user.name, planName, nextDate));
+    }
   },
 
   onSubscriptionPlanChanged: async (payload) => {
@@ -120,13 +130,14 @@ export const POST = Webhooks({
       ? new Date(data.next_billing_date)
       : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    await activatePlan(
-      userId,
-      planCode,
-      data.customer?.customer_id ?? "",
-      data.subscription_id ?? "",
-      periodEnd,
-    );
+    await activatePlan(userId, planCode, data.customer?.customer_id ?? "", data.subscription_id ?? "", periodEnd);
+
+    const user = await getUserInfo(userId);
+    if (user) {
+      const planName = planCode.charAt(0).toUpperCase() + planCode.slice(1);
+      const nextDate = periodEnd.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+      await sendEmail(user.email, `Plan updated: you're now on ${planName}`, subscriptionActivatedEmail(user.name, planName, nextDate));
+    }
   },
 
   onSubscriptionCancelled: async (payload) => {
@@ -134,6 +145,8 @@ export const POST = Webhooks({
     const userId = data.metadata?.userId as string | undefined;
     if (!userId) return;
     await downgradeToStarter(userId);
+    const user = await getUserInfo(userId);
+    if (user) await sendEmail(user.email, "Your AskYourSite subscription has been cancelled", subscriptionCancelledEmail(user.name));
   },
 
   onSubscriptionExpired: async (payload) => {
@@ -141,6 +154,8 @@ export const POST = Webhooks({
     const userId = data.metadata?.userId as string | undefined;
     if (!userId) return;
     await downgradeToStarter(userId);
+    const user = await getUserInfo(userId);
+    if (user) await sendEmail(user.email, "Your AskYourSite subscription has expired", subscriptionCancelledEmail(user.name));
   },
 
   onSubscriptionFailed: async (payload) => {
@@ -148,6 +163,11 @@ export const POST = Webhooks({
     const userId = data.metadata?.userId as string | undefined;
     if (!userId) return;
     await downgradeToStarter(userId);
+    const productId: string = data.product_id ?? "";
+    const planCode = PRODUCT_PLAN_MAP[productId] ?? "starter";
+    const planName = planCode.charAt(0).toUpperCase() + planCode.slice(1);
+    const user = await getUserInfo(userId);
+    if (user) await sendEmail(user.email, "Action required: payment failed", paymentFailedEmail(user.name, planName));
   },
 
   onPaymentSucceeded: async (payload) => {
