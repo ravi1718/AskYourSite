@@ -494,6 +494,8 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
 
           // Deterministic suggestions — no async API call, guaranteed to always work
           let suggestions: string[];
+          const q = query.toLowerCase();
+          const r = fullAssistantResponse.toLowerCase();
           if (imageMapRawData.length > 0) {
             const firstName = (imageMapRawData[0]?.content_chunk || "")
               .split(/[|\n]/)[0]?.trim().substring(0, 35) || "this product";
@@ -502,12 +504,28 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
               "What are the prices?",
               "Do you have other options?",
             ];
-          } else if (/price|cost|cheap|affordable/i.test(query)) {
+          } else if (/price|cost|how much|afford|cheap|expensive|discount|offer|deal/i.test(q)) {
             suggestions = ["Do you have discounts?", "What are the payment options?", "Show me more products"];
-          } else if (/return|refund|exchange/i.test(query)) {
+          } else if (/return|refund|exchange|cancel|warranty/i.test(q)) {
             suggestions = ["How long does shipping take?", "Can I track my order?", "Contact support"];
+          } else if (/ship|deliver|track|order status|dispatch/i.test(q)) {
+            suggestions = ["What's the return policy?", "How do I contact support?", "Show me more products"];
+          } else if (/contact|email|phone|reach|support|help|talk to/i.test(q)) {
+            suggestions = ["What are your business hours?", "Do you have a live chat?", "Show me your products"];
+          } else if (/how|step|guide|tutorial|setup|install|configure/i.test(q)) {
+            suggestions = ["Can you explain more?", "What are the requirements?", "Contact support"];
+          } else if (/compare|difference|vs|versus|better|best|recommend/i.test(q)) {
+            suggestions = ["What are the prices?", "Show me all options", "Which do you recommend?"];
+          } else if (/who|what is|about|tell me about|explain/i.test(q)) {
+            suggestions = ["Show me your products", "What are your prices?", "How do I get started?"];
+          } else if (r.includes("price") || r.includes("$") || r.includes("cost")) {
+            suggestions = ["Do you have discounts?", "What payment methods do you accept?", "Show me more"];
+          } else if (r.includes("product") || r.includes("item") || r.includes("collection")) {
+            suggestions = ["Show me more options", "What are the prices?", "How do I order?"];
+          } else if (r.includes("contact") || r.includes("email") || r.includes("support")) {
+            suggestions = ["What are your business hours?", "Do you have a FAQ?", "Show me your products"];
           } else {
-            suggestions = ["Tell me more", "Show me some products", "What else can you help with?"];
+            suggestions = ["Tell me more", "What are your top products?", "How can I get started?"];
           }
           suffix += `__AYS_SUGGESTIONS__${JSON.stringify(suggestions)}`;
 

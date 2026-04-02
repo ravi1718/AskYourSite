@@ -237,17 +237,12 @@
     #ays-chat-input {
       flex: 1;
       background: transparent;
-      border: 1px solid #1e293b;
+      border: none;
       border-radius: 12px;
       padding: 12px 16px;
       color: ${widgetConfig.textColor || '#ffffff'};
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s;
-    }
-    
-    #ays-chat-input:focus {
-      border-color: ${widgetConfig.primaryColor};
     }
     
     #ays-chat-send {
