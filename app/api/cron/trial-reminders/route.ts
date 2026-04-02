@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function GET(req: Request) {
   // Protect with CRON_SECRET so only Vercel Cron (or manual calls with the header) can trigger this
-  // console.log("CRON_SECRET:", process.env.CRON_SECRET);
+  
   const authHeader = req.headers.get("Authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
