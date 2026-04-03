@@ -4,6 +4,7 @@ import React, { useRef } from "react";
 import Link from "next/link";
 import NextImage from "next/image";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
+import { IntegrationsComingSoon } from "@/components/sections/integrations-coming-soon";
 import {
   ArrowRight,
   Bot,
@@ -525,6 +526,8 @@ export default function Home() {
 
         </div>
       </section>
+
+      <IntegrationsComingSoon />
 
       {/* ═══════════════════════════════════════
           HOW IT WORKS
