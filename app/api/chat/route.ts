@@ -42,6 +42,7 @@ export async function POST(req: Request) {
 
   try {
     const { messages, assistantId, sessionId, imageBase64, imageMimeType } = await req.json();
+    const isPreview = assistantId === "preview";
 
     if (!messages || !assistantId || !Array.isArray(messages)) {
       return NextResponse.json({ error: "Missing required fields or invalid format" }, { status: 400, headers: { "Access-Control-Allow-Origin": "*" } });
@@ -95,15 +96,17 @@ export async function POST(req: Request) {
         }
       }
 
-      // Log the user message to chat_messages
-      await supabase.from("chat_messages").insert({
-        assistant_id: assistantId,
-        session_id: chatSessionId,
-        role: "user",
-        content: lastUserMessage,
-      });
+      // Log the user message to chat_messages (skip for preview — no real assistant row)
+      if (!isPreview) {
+        await supabase.from("chat_messages").insert({
+          assistant_id: assistantId,
+          session_id: chatSessionId,
+          role: "user",
+          content: lastUserMessage,
+        });
+      }
 
-      try {
+      if (!isPreview) try {
         // Embed the query
         const embedResponse = await ai.models.embedContent({
           model: 'gemini-embedding-001',
@@ -254,7 +257,7 @@ export async function POST(req: Request) {
     if (supabase) {
       const { data } = await supabase
         .from("assistants")
-        .select("widget_config, tone")
+        .select("widget_config, tone, user_id")
         .eq("id", assistantId)
         .single();
       assistantData = data;
@@ -269,6 +272,46 @@ export async function POST(req: Request) {
         supportUrl: wc.supportUrl || "",
         orderWebhookUrl: wc.orderWebhookUrl || "",
       };
+    }
+
+    // ── Calendly booking intent detection ────────────────────────────────────
+    const BOOKING_KEYWORDS = [
+      "book", "schedule", "demo", "call", "meeting", "appointment",
+      "talk to", "speak with", "consult", "set up a time", "hop on a call",
+    ];
+    // Prevent re-triggering when user is confirming/thanking after a booking
+    const ANTI_BOOKING_PATTERNS = [
+      /thank.{0,20}(book|schedul|meeting|appointment)/i,
+      /thanks.{0,20}(book|schedul|meeting|appointment)/i,
+      /(already|just).{0,10}(book|schedul)/i,
+      /(book|schedul).{0,20}(confirm|done|complet)/i,
+    ];
+    const lastUserMsgLower = (lastUserMessage || "").toLowerCase();
+    const hasBookingIntent =
+      BOOKING_KEYWORDS.some((kw) => lastUserMsgLower.includes(kw)) &&
+      !ANTI_BOOKING_PATTERNS.some((pat) => pat.test(lastUserMessage || ""));
+    let bookingPayload: { url: string; name: string } | null = null;
+
+    if (
+      hasBookingIntent &&
+      assistantData?.widget_config?.calendlyEnabled &&
+      assistantData?.widget_config?.calendlyEventTypeUrl &&
+      supabase
+    ) {
+      const assistantOwnerId = assistantData?.user_id;
+      if (assistantOwnerId) {
+        const { data: planData } = await supabase
+          .rpc("get_user_usage", { p_user_id: assistantOwnerId } as any)
+          .single();
+        const planCode = (planData as any)?.plan_code;
+        const hasCalendlyAccess = planCode === "pro" || planCode === "business";
+        if (hasCalendlyAccess) {
+          bookingPayload = {
+            url: assistantData.widget_config.calendlyEventTypeUrl,
+            name: assistantData.widget_config.calendlyEventTypeName || "a meeting",
+          };
+        }
+      }
     }
 
     // Role-based system prompt selection
@@ -542,6 +585,11 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
             console.log(`[Chat] Injected ${products.length} product cards server-side`);
           }
 
+          // Append Calendly booking card if intent detected and plan allows it
+          if (bookingPayload) {
+            suffix += `__AYS_BOOKING__${JSON.stringify(bookingPayload)}`;
+          }
+
           // Enqueue the markers as a final chunk
           controller.enqueue(encoder.encode(suffix));
 
@@ -553,7 +601,7 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
 
           // Log clean response to chat_messages (strip all __AYS_* markers)
           const cleanResponse = fullAssistantResponse.replace(/__AYS_\w+__[\s\S]*/g, "").trim();
-          if (supabase && cleanResponse) {
+          if (!isPreview && supabase && cleanResponse) {
             supabase.from("chat_messages").insert({
               assistant_id: assistantId,
               session_id: chatSessionId,

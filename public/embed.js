@@ -316,6 +316,38 @@
       opacity: 0.75;
     }
 
+    .ays-booking-wrapper {
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    .ays-booking-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      margin: 0 0 10px 0;
+    }
+
+    .ays-booking-btn {
+      background: #006BFF;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ays-booking-btn:hover {
+      background: #0057d4;
+    }
+
     #ays-image-preview-area {
       padding: 8px 16px 0;
       display: none;
@@ -863,10 +895,10 @@
   const ACTION_ICONS = { cart: '🛒', track: '📦', support: '💬' };
 
   const parseMarkers = (raw) => {
-    const result = { text: raw, suggestions: [], products: [], actions: [] };
+    const result = { text: raw, suggestions: [], products: [], actions: [], booking: null };
 
     // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
-    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__'];
+    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__', '__AYS_BOOKING__'];
     const indices = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
     if (!indices.length) return result;
 
@@ -879,9 +911,11 @@
       const afterSugs = tail.substring(sugsIdx + '__AYS_SUGGESTIONS__'.length);
       const p = afterSugs.indexOf('__AYS_PRODUCTS__');
       const a = afterSugs.indexOf('__AYS_ACTIONS__');
+      const b = afterSugs.indexOf('__AYS_BOOKING__');
       let sugsRaw = afterSugs;
       if (p !== -1) sugsRaw = afterSugs.substring(0, p);
       else if (a !== -1) sugsRaw = afterSugs.substring(0, a);
+      else if (b !== -1) sugsRaw = afterSugs.substring(0, b);
       try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch(e) {}
     }
 
@@ -889,14 +923,25 @@
     if (prodsIdx !== -1) {
       const afterProds = tail.substring(prodsIdx + '__AYS_PRODUCTS__'.length);
       const a = afterProds.indexOf('__AYS_ACTIONS__');
-      const prodsRaw = a !== -1 ? afterProds.substring(0, a) : afterProds;
+      const b = afterProds.indexOf('__AYS_BOOKING__');
+      let prodsRaw = afterProds;
+      if (a !== -1) prodsRaw = afterProds.substring(0, a);
+      else if (b !== -1) prodsRaw = afterProds.substring(0, b);
       try { result.products = JSON.parse(prodsRaw.trim()); } catch(e) {}
     }
 
     const actsIdx = tail.indexOf('__AYS_ACTIONS__');
     if (actsIdx !== -1) {
-      const actsRaw = tail.substring(actsIdx + '__AYS_ACTIONS__'.length);
+      const afterActs = tail.substring(actsIdx + '__AYS_ACTIONS__'.length);
+      const b = afterActs.indexOf('__AYS_BOOKING__');
+      const actsRaw = b !== -1 ? afterActs.substring(0, b) : afterActs;
       try { result.actions = JSON.parse(actsRaw.trim()); } catch(e) {}
+    }
+
+    const bookIdx = tail.indexOf('__AYS_BOOKING__');
+    if (bookIdx !== -1) {
+      const bookRaw = tail.substring(bookIdx + '__AYS_BOOKING__'.length);
+      try { result.booking = JSON.parse(bookRaw.trim()); } catch(e) {}
     }
 
     return result;
@@ -939,6 +984,32 @@
       row.appendChild(btn);
     });
     messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  };
+
+  const renderBooking = (booking) => {
+    if (!booking || !booking.url) return;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ays-booking-wrapper';
+    wrapper.innerHTML = `
+      <p class="ays-booking-text">I can help you schedule ${booking.name || 'a meeting'}! Pick a time that works:</p>
+      <button class="ays-booking-btn">📅 Schedule a Meeting</button>
+    `;
+    const btn = wrapper.querySelector('.ays-booking-btn');
+    btn.addEventListener('click', () => {
+      btn.style.display = 'none';
+      const frame = document.createElement('iframe');
+      frame.src = booking.url + '?embed_type=Inline&embed_domain=1';
+      frame.width = '100%';
+      frame.height = '630';
+      frame.setAttribute('frameborder', '0');
+      frame.title = 'Schedule a meeting';
+      frame.style.borderRadius = '12px';
+      frame.style.border = '1px solid rgba(0,107,255,0.3)';
+      wrapper.appendChild(frame);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+    messagesEl.appendChild(wrapper);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   };
 
@@ -1033,6 +1104,7 @@
       if (parsed.suggestions.length > 0) renderSuggestions(parsed.suggestions);
       if (parsed.products.length > 0) renderProductCards(parsed.products);
       if (parsed.actions.length > 0) renderActions(parsed.actions);
+      if (parsed.booking) renderBooking(parsed.booking);
       messagesEl.scrollTop = messagesEl.scrollHeight;
 
       conversation.push({ role: 'assistant', content: parsed.text });

@@ -5,69 +5,7 @@ import { Bot, Paperclip, Send, ChevronDown, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
 
-const AYS_MARKER = "__AYS_";
-
-interface AysMarkers {
-  text: string;
-  suggestions: string[];
-  products: Product[];
-  actions: Action[];
-}
-
-interface Product {
-  name?: string;
-  price?: string;
-  image?: string;
-  url?: string;
-  description?: string;
-}
-
-interface Action {
-  label: string;
-  url?: string;
-  style?: "primary" | "secondary";
-  icon?: "cart" | "track" | "support";
-}
-
-function parseMarkers(raw: string): AysMarkers {
-  const result: AysMarkers = { text: raw, suggestions: [], products: [], actions: [] };
-
-  // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
-  const MARKERS = ["__AYS_SUGGESTIONS__", "__AYS_PRODUCTS__", "__AYS_ACTIONS__"] as const;
-  const firstIdx = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
-  if (!firstIdx.length) return result;
-
-  const splitAt = Math.min(...firstIdx);
-  result.text = raw.substring(0, splitAt);
-  const tail = raw.substring(splitAt);
-
-  const sugsIdx = tail.indexOf("__AYS_SUGGESTIONS__");
-  if (sugsIdx !== -1) {
-    const afterSugs = tail.substring(sugsIdx + "__AYS_SUGGESTIONS__".length);
-    const p = afterSugs.indexOf("__AYS_PRODUCTS__");
-    const a = afterSugs.indexOf("__AYS_ACTIONS__");
-    let sugsRaw = afterSugs;
-    if (p !== -1) sugsRaw = afterSugs.substring(0, p);
-    else if (a !== -1) sugsRaw = afterSugs.substring(0, a);
-    try { result.suggestions = JSON.parse(sugsRaw.trim()); } catch { /* skip */ }
-  }
-
-  const prodsIdx = tail.indexOf("__AYS_PRODUCTS__");
-  if (prodsIdx !== -1) {
-    const afterProds = tail.substring(prodsIdx + "__AYS_PRODUCTS__".length);
-    const a = afterProds.indexOf("__AYS_ACTIONS__");
-    const prodsRaw = a !== -1 ? afterProds.substring(0, a) : afterProds;
-    try { result.products = JSON.parse(prodsRaw.trim()); } catch { /* skip */ }
-  }
-
-  const actsIdx = tail.indexOf("__AYS_ACTIONS__");
-  if (actsIdx !== -1) {
-    const actsRaw = tail.substring(actsIdx + "__AYS_ACTIONS__".length);
-    try { result.actions = JSON.parse(actsRaw.trim()); } catch { /* skip */ }
-  }
-
-  return result;
-}
+import { AYS_MARKER, parseMarkers, type BookingPayload, type Product, type Action } from "@/lib/chat/parse-markers";
 
 const ACTION_ICONS: Record<string, string> = { cart: "🛒", track: "📦", support: "💬" };
 
@@ -147,6 +85,8 @@ export function ChatWidget({
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [actions, setActions] = useState<Action[]>([]);
+  const [booking, setBooking] = useState<BookingPayload | null>(null);
+  const [showCalendly, setShowCalendly] = useState(false);
   const [sessionId] = useState(() => crypto.randomUUID());
   const [imageAttachment, setImageAttachment] = useState<ImageAttachment | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -162,6 +102,10 @@ export function ChatWidget({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, suggestions]);
+
+  useEffect(() => {
+    setShowCalendly(false);
+  }, [booking]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -184,6 +128,7 @@ export function ChatWidget({
     setSuggestions([]);
     setProducts([]);
     setActions([]);
+    setBooking(null);
     setInput("");
     const currentImage = imageAttachment;
     setImageAttachment(null);
@@ -254,6 +199,7 @@ export function ChatWidget({
       if (parsed.suggestions.length > 0) setSuggestions(parsed.suggestions);
       if (parsed.products.length > 0) setProducts(parsed.products);
       if (parsed.actions.length > 0) setActions(parsed.actions);
+      if (parsed.booking) setBooking(parsed.booking);
     } catch (err) {
       setMessages((prev) => {
         const updated = [...prev];
@@ -432,6 +378,31 @@ export function ChatWidget({
                     {isLast && actions.length > 0 && (
                       <div className="mt-2">
                         <ActionButtons actions={actions} />
+                      </div>
+                    )}
+                    {isLast && booking && (
+                      <div className="mt-3 ml-1">
+                        <p className="text-sm font-medium text-white mb-3">
+                          I can help you schedule {booking.name}! Pick a time that works:
+                        </p>
+                        {!showCalendly ? (
+                          <button
+                            onClick={() => setShowCalendly(true)}
+                            className="inline-flex items-center gap-2 rounded-lg bg-[#006BFF] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0057d4] transition-colors"
+                          >
+                            📅 Schedule a Meeting
+                          </button>
+                        ) : (
+                          <div className="rounded-xl overflow-hidden border border-[#006BFF]/30">
+                            <iframe
+                              src={`${booking.url}?embed_type=Inline&embed_domain=1`}
+                              width="100%"
+                              height="630"
+                              frameBorder={0}
+                              title="Schedule a meeting"
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

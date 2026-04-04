@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { AYS_MARKER, parseMarkers, type BookingPayload } from "@/lib/chat/parse-markers";
 import ReactMarkdown from "react-markdown";
 import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -171,6 +172,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
+  const [chatBooking, setChatBooking] = useState<BookingPayload | null>(null);
   const [chatImage, setChatImage] = useState<{ base64: string; mimeType: string; previewUrl: string } | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -374,8 +376,6 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const SUGGESTIONS_DELIMITER = "__AYS_SUGGESTIONS__";
-
   const handleImageSelectPlayground = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -395,6 +395,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     if (!text && !chatImage) return;
 
     setChatSuggestions([]);
+    setChatBooking(null);
     const currentImage = chatImage;
     setChatImage(null);
     const userContent = text || "🔍 Image search";
@@ -422,49 +423,40 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let mainBuffer = "";
-      let suggestionsBuffer = "";
-      let delimiterFound = false;
 
       if (reader) {
         setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+        let fullRawResponse = "";
+        let markerFound = false;
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
+          fullRawResponse += chunk;
 
-          if (delimiterFound) {
-            suggestionsBuffer += chunk;
-          } else {
-            mainBuffer += chunk;
-            const delimIdx = mainBuffer.indexOf(SUGGESTIONS_DELIMITER);
-            if (delimIdx !== -1) {
-              delimiterFound = true;
-              const cleanText = mainBuffer.substring(0, delimIdx);
-              suggestionsBuffer = mainBuffer.substring(delimIdx + SUGGESTIONS_DELIMITER.length);
-              mainBuffer = cleanText;
-            }
+          if (!markerFound) {
+            const markerIdx = fullRawResponse.indexOf(AYS_MARKER);
+            const displayText = markerIdx !== -1
+              ? (markerFound = true, fullRawResponse.substring(0, markerIdx))
+              : fullRawResponse;
             setMessages((prev) => {
               const updated = [...prev];
-              updated[updated.length - 1] = { ...updated[updated.length - 1], content: mainBuffer };
+              updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayText };
               return updated;
             });
           }
         }
 
-        // Parse suggestions after stream fully ends
-        if (delimiterFound && suggestionsBuffer) {
-          try {
-            // Strip any trailing __AYS_PRODUCTS__ / __AYS_ACTIONS__ markers so JSON.parse doesn't fail
-            let sugsRaw = suggestionsBuffer.trim();
-            const p = sugsRaw.indexOf('__AYS_PRODUCTS__');
-            const a = sugsRaw.indexOf('__AYS_ACTIONS__');
-            const end = Math.min(p !== -1 ? p : Infinity, a !== -1 ? a : Infinity);
-            if (end !== Infinity) sugsRaw = sugsRaw.substring(0, end).trim();
-            const parsed = JSON.parse(sugsRaw);
-            if (Array.isArray(parsed) && parsed.length > 0) setChatSuggestions(parsed);
-          } catch { /* malformed — skip */ }
-        }
+        // Parse all markers once stream ends
+        const parsed = parseMarkers(fullRawResponse);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: parsed.text };
+          return updated;
+        });
+        if (parsed.suggestions.length > 0) setChatSuggestions(parsed.suggestions);
+        if (parsed.booking) setChatBooking(parsed.booking);
       }
     } catch (err) {
       console.error(err);
@@ -634,6 +626,24 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                           {q}
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Booking card — shown when assistant detects booking intent */}
+                  {!isTyping && chatBooking && (
+                    <div className="ml-11 mt-1">
+                      <p className="text-sm font-medium text-white mb-3">
+                        I can help you schedule {chatBooking.name}! Pick a time that works:
+                      </p>
+                      <div className="rounded-xl overflow-hidden border border-[#006BFF]/30">
+                        <iframe
+                          src={`${chatBooking.url}?embed_type=Inline&embed_domain=1`}
+                          width="100%"
+                          height="630"
+                          frameBorder={0}
+                          title="Schedule a meeting"
+                        />
+                      </div>
                     </div>
                   )}
 
