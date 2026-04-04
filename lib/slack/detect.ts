@@ -1,0 +1,50 @@
+import crypto from "crypto";
+
+// Unanswered detection patterns — kept in sync with app/api/analytics/route.ts
+export const UNANSWERED_PATTERNS = [
+  "i don't have information about",
+  "i don't know",
+  "i'm not sure about",
+  "i couldn't find",
+  "i don't have details on",
+  "not in my knowledge",
+  "i'm unable to find",
+  "i cannot find",
+  "no information available",
+  "outside my knowledge",
+  "i don't have enough information",
+  "no specific context",
+];
+
+// Buying intent keywords — any substring match triggers an alert
+export const BUYING_INTENT_KEYWORDS = [
+  "pricing", "price", "how much", "cost", "costs",
+  "buy", "purchase", "subscribe", "subscription", "sign up",
+  "upgrade", "enterprise", "team plan", "get started",
+  "invoice", "billing", "payment", "pay", "credit card",
+  "what plan", "which plan", "plans", "tiers",
+  "free trial", "trial", "demo", "book a demo", "schedule a demo",
+  "talk to sales", "speak with someone", "contact sales",
+];
+
+/** Returns true if the bot response indicates it couldn't answer the question. */
+export function detectUnanswered(botResponse: string): boolean {
+  const lower = botResponse.toLowerCase();
+  return UNANSWERED_PATTERNS.some((p) => lower.includes(p));
+}
+
+/** Returns true if the user's message contains buying intent signals. */
+export function detectBuyingIntent(userMessage: string): boolean {
+  const lower = userMessage.toLowerCase();
+  return BUYING_INTENT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/** Normalize a question for deduplication: lowercase, strip punctuation, trim. */
+export function normalizeQuestion(q: string): string {
+  return q.toLowerCase().replace(/[^\w\s]/g, "").trim();
+}
+
+/** SHA-256 hex hash of a normalized question string for dedup lookup. */
+export function hashQuestion(normalized: string): string {
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+}

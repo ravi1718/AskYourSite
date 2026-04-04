@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendSlackAlert } from "@/lib/slack/send-alert";
+import { leadBlock } from "@/lib/slack/blocks";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -13,7 +15,7 @@ export async function OPTIONS() {
 
 export async function POST(req: Request) {
   try {
-    const { assistantId, sessionId, name, email, phone } = await req.json();
+    const { assistantId, sessionId, name, email, phone, firstMessage, pageUrl } = await req.json();
 
     if (!assistantId || !email) {
       return NextResponse.json(
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
     // Verify the assistant exists and has lead capture enabled
     const { data: assistant, error: assistantError } = await supabase
       .from("assistants")
-      .select("id, widget_config")
+      .select("id, name, user_id, widget_config")
       .eq("id", assistantId)
       .single();
 
@@ -73,6 +75,26 @@ export async function POST(req: Request) {
         { error: "Failed to save lead" },
         { status: 500, headers: CORS_HEADERS }
       );
+    }
+
+    // Fire Slack lead alert non-blocking — email required for alert to have follow-up value
+    if (assistant.user_id && email) {
+      const effectiveSessionId = sessionId || "unknown";
+      const blocks = leadBlock({
+        botName: assistant.name ?? "Your bot",
+        leadName: name ?? null,
+        leadEmail: email,
+        firstMessage: firstMessage ?? "",
+        pageUrl: pageUrl ?? "",
+        conversationId: effectiveSessionId,
+      });
+      sendSlackAlert(
+        assistant.user_id,
+        assistantId,
+        effectiveSessionId,
+        "lead_captured",
+        blocks
+      ).catch((e) => console.error("[Slack] Lead alert failed:", e));
     }
 
     return NextResponse.json({ success: true }, { status: 200, headers: CORS_HEADERS });

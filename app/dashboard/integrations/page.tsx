@@ -152,7 +152,7 @@ const INTEGRATIONS: Integration[] = [
     logo: <SlackLogo size={36} />,
     accentColor: "#E01E5A",
     provider: "slack",
-    functional: false,
+    functional: true,
   },
   {
     id: "notion",
@@ -255,9 +255,17 @@ function IntegrationCard({
             {disconnecting || isPending ? "Disconnecting…" : "Disconnect"}
           </button>
         </div>
+      ) : onConfigure ? (
+        <button
+          onClick={onConfigure}
+          className="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center transition-colors"
+          style={{ backgroundColor: integration.accentColor }}
+        >
+          Connect {integration.name}
+        </button>
       ) : (
         <a
-          href="/api/integrations/calendly/connect"
+          href={`/api/integrations/${integration.provider}/connect`}
           className="w-full rounded-lg px-4 py-2 text-sm font-semibold text-white text-center transition-colors"
           style={{ backgroundColor: integration.accentColor }}
         >
@@ -422,6 +430,240 @@ function CalendlyAssistantConfig() {
   );
 }
 
+// ─── Slack Config Panel ───────────────────────────────────────────────────────
+
+function SlackAssistantConfig() {
+  const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [integration, setIntegration] = useState<{
+    team_name: string;
+    channel_name: string;
+    alert_new_lead: boolean;
+    alert_buying_intent: boolean;
+    alert_unanswered: boolean;
+    alert_booking_confirmed: boolean;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [testState, setTestState] = useState<"idle" | "sending" | "ok" | "fail">("idle");
+  const [toggles, setToggles] = useState({
+    alert_new_lead: true,
+    alert_buying_intent: true,
+    alert_unanswered: true,
+    alert_booking_confirmed: true,
+  });
+  const [assistants, setAssistants] = useState<{ id: string; name: string; slackEnabled: boolean }[]>([]);
+  const [assistantSaving, setAssistantSaving] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch plan, integration metadata, and assistants in parallel
+      const [usageRes, integrationRes, assistantsRes] = await Promise.all([
+        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
+        supabase.from("user_integrations").select("metadata").eq("user_id", user.id).eq("provider", "slack").single(),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+      ]);
+
+      setPlan((usageRes.data as any)?.plan_code ?? "starter");
+
+      if (integrationRes.data?.metadata) {
+        const meta = integrationRes.data.metadata as Record<string, any>;
+        setIntegration({
+          team_name: meta.team_name ?? "",
+          channel_name: meta.channel_name ?? "",
+          alert_new_lead: meta.alert_new_lead ?? true,
+          alert_buying_intent: meta.alert_buying_intent ?? true,
+          alert_unanswered: meta.alert_unanswered ?? true,
+          alert_booking_confirmed: meta.alert_booking_confirmed ?? true,
+        });
+        setToggles({
+          alert_new_lead: meta.alert_new_lead ?? true,
+          alert_buying_intent: meta.alert_buying_intent ?? true,
+          alert_unanswered: meta.alert_unanswered ?? true,
+          alert_booking_confirmed: meta.alert_booking_confirmed ?? true,
+        });
+      }
+
+      setAssistants((assistantsRes.data ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        slackEnabled: r.widget_config?.slackEnabled !== false, // default true
+      })));
+
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleAssistantToggle(assistantId: string) {
+    const current = assistants.find((a) => a.id === assistantId);
+    if (!current) return;
+    const next = !current.slackEnabled;
+    setAssistants((prev) => prev.map((a) => a.id === assistantId ? { ...a, slackEnabled: next } : a));
+    setAssistantSaving((s) => ({ ...s, [assistantId]: true }));
+    await fetch("/api/integrations/slack/assistant-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assistantId, slackEnabled: next }),
+    });
+    setAssistantSaving((s) => ({ ...s, [assistantId]: false }));
+  }
+
+  async function handleToggle(key: keyof typeof toggles) {
+    const next = { ...toggles, [key]: !toggles[key] };
+    setToggles(next);
+    setSaving(true);
+    await fetch("/api/integrations/slack/configure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(next),
+    });
+    setSaving(false);
+  }
+
+  async function handleTestNotification() {
+    setTestState("sending");
+    const res = await fetch("/api/integrations/slack/test", { method: "POST" });
+    const data = await res.json();
+    setTestState(data.success ? "ok" : "fail");
+    setTimeout(() => setTestState("idle"), 4000);
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mb-4" />
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-white/5 rounded-xl animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
+  const isLocked = plan !== "pro" && plan !== "business";
+
+  // Not connected state
+  if (!integration) {
+    return (
+      <div className="rounded-2xl border border-[#E01E5A]/20 bg-[#E01E5A]/5 p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <SlackLogo size={24} />
+          <h2 className="text-base font-semibold text-white">Connect Slack</h2>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">
+          Get instant Slack notifications when a visitor captures their email, asks about pricing, or your bot can&apos;t answer a question.
+        </p>
+        <ul className="space-y-1 mb-5">
+          {["New lead captured → notification in Slack", "Buying intent detected → alert your sales team instantly", "Bot can't answer → reminder to update your training"].map((item) => (
+            <li key={item} className="flex items-center gap-2 text-sm text-slate-300">
+              <span className="text-emerald-400">✓</span> {item}
+            </li>
+          ))}
+        </ul>
+        {isLocked ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+            Slack Alerts are available on the <strong>Pro plan</strong>. Upgrade to get real-time notifications when visitors show buying intent or your bot gets stuck.
+          </div>
+        ) : (
+          <a
+            href="/api/integrations/slack/connect"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#E01E5A] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#c01849] transition-colors"
+          >
+            <SlackLogo size={16} /> Connect Slack
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  // Connected state
+  return (
+    <div className="rounded-2xl border border-[#E01E5A]/20 bg-[#E01E5A]/5 p-6">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-3">
+          <SlackLogo size={24} />
+          <h2 className="text-base font-semibold text-white">Slack Alerts</h2>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Connected to {integration.team_name || "Slack"}
+        </span>
+      </div>
+
+      <p className="text-sm text-slate-400 mb-2">
+        Posting to <span className="text-white font-medium">#{integration.channel_name || "your channel"}</span>.
+        <span className="text-slate-500 ml-1 text-xs">To change channel, disconnect and reconnect Slack.</span>
+      </p>
+
+      {isLocked && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          🔒 Upgrade to Pro to enable Slack alerts
+        </div>
+      )}
+
+      {/* Per-assistant toggles */}
+      <div className="mb-5">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Assistants</p>
+        {assistants.length === 0 ? (
+          <p className="text-sm text-slate-500">No assistants yet. <a href="/dashboard/assistants/new" className="text-primary underline">Create one first.</a></p>
+        ) : (
+          <div className="space-y-2">
+            {assistants.map((a) => (
+              <div key={a.id} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+                <span className="text-sm font-medium text-white">{a.name}</span>
+                <button
+                  onClick={() => !isLocked && handleAssistantToggle(a.id)}
+                  disabled={isLocked || assistantSaving[a.id]}
+                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${isLocked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${a.slackEnabled && !isLocked ? "bg-[#E01E5A]" : "bg-slate-700"}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${a.slackEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Alert type toggles */}
+      <div className="space-y-3 mb-5">
+        {([
+          { key: "alert_new_lead", label: "New lead captured", description: "When a visitor submits their email" },
+          { key: "alert_buying_intent", label: "Buying intent detected", description: "When a visitor asks about pricing or plans" },
+          { key: "alert_unanswered", label: "Bot can't answer", description: "When the bot fails to answer a question" },
+          { key: "alert_booking_confirmed", label: "Booking confirmed", description: "When a visitor books a meeting via Calendly" },
+        ] as Array<{ key: keyof typeof toggles; label: string; description: string }>).map(({ key, label, description }) => (
+          <div key={key} className="flex items-center justify-between rounded-xl border border-border bg-surface p-4">
+            <div>
+              <p className="text-sm font-medium text-white">{label}</p>
+              <p className="text-xs text-slate-500">{description}</p>
+            </div>
+            <button
+              onClick={() => !isLocked && handleToggle(key)}
+              disabled={isLocked || saving}
+              className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${isLocked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${toggles[key] && !isLocked ? "bg-[#E01E5A]" : "bg-slate-700"}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${toggles[key] ? "translate-x-4" : "translate-x-0"}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleTestNotification}
+          disabled={isLocked || testState === "sending"}
+          className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {testState === "sending" ? "Sending…" : testState === "ok" ? "✓ Sent!" : testState === "fail" ? "Failed — try reconnecting" : "Send test notification"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -450,10 +692,17 @@ export default function IntegrationsPage() {
     if (params.get("success") === "calendly") {
       setToast({ type: "success", message: "Calendly connected successfully!" });
       window.history.replaceState({}, "", "/dashboard/integrations");
+    } else if (params.get("success") === "slack") {
+      setToast({ type: "success", message: "Slack connected successfully! Alerts are now enabled." });
+      window.history.replaceState({}, "", "/dashboard/integrations");
     } else if (params.get("error")) {
       const errMap: Record<string, string> = {
-        no_code: "No authorization code received from Calendly.",
+        no_code: "No authorization code received.",
         token_exchange: "Failed to exchange code for tokens. Please try again.",
+        invalid_state: "Authorization request expired or invalid. Please try again.",
+        access_denied: "Authorization was denied.",
+        upgrade_required: "Slack integration requires a Pro or Business plan.",
+        server_error: "A server error occurred. Please try again.",
       };
       setToast({ type: "error", message: errMap[params.get("error")!] ?? "Connection failed." });
       window.history.replaceState({}, "", "/dashboard/integrations");
@@ -490,14 +739,17 @@ export default function IntegrationsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {INTEGRATIONS.flatMap((integration) => {
             const isConnected = connectedProviders.has(integration.provider);
+            const canConfigure =
+              (integration.id === "calendly" && isConnected) ||
+              (integration.id === "slack");  // Slack: always show configure (panel handles not-connected state)
             const items: React.ReactNode[] = [
               <IntegrationCard
                 key={integration.id}
                 integration={integration}
                 isConnected={isConnected}
                 onDisconnected={loadConnected}
-                onConfigure={integration.id === "calendly" && isConnected
-                  ? () => setOpenConfig(openConfig === "calendly" ? null : "calendly")
+                onConfigure={canConfigure
+                  ? () => setOpenConfig(openConfig === integration.id ? null : integration.id)
                   : undefined}
               />,
             ];
@@ -505,6 +757,13 @@ export default function IntegrationsPage() {
               items.push(
                 <div key="calendly-config" className="col-span-full">
                   <CalendlyAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "slack" && openConfig === "slack") {
+              items.push(
+                <div key="slack-config" className="col-span-full">
+                  <SlackAssistantConfig />
                 </div>
               );
             }

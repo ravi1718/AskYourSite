@@ -572,6 +572,9 @@
   styleEl.innerHTML = STYLES;
   document.head.appendChild(styleEl);
 
+  // Persistent session ID for this widget load (used for Slack alert rate limiting)
+  const chatSessionId = crypto.randomUUID();
+
   // Build UI
   const container = document.createElement('div');
   container.id = 'ays-widget-container';
@@ -740,7 +743,7 @@
         await fetch(API_BASE + '/api/leads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assistantId: agentId, sessionId: crypto.randomUUID(), name: nameVal || null, email: emailVal })
+          body: JSON.stringify({ assistantId: agentId, sessionId: chatSessionId, name: nameVal || null, email: emailVal, pageUrl: window.location.href })
         });
       } catch (e) { /* non-blocking — proceed even if lead save fails */ }
 
@@ -1062,6 +1065,7 @@
         body: JSON.stringify({
           messages: conversation,
           assistantId: agentId,
+          sessionId: chatSessionId,
           ...(currentImageBase64 && {
             imageBase64: currentImageBase64,
             imageMimeType: currentImageMimeType,
