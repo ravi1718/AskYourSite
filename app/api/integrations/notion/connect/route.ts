@@ -6,7 +6,8 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 export async function GET() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
-  const supabase = getSupabaseServerClient();
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return NextResponse.redirect(`${appUrl}/dashboard/integrations?error=server_error`);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.redirect(`${appUrl}/dashboard/integrations?error=server_error`);
 

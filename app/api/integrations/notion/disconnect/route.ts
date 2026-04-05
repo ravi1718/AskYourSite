@@ -3,7 +3,8 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function POST() {
-  const supabase = getSupabaseServerClient();
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

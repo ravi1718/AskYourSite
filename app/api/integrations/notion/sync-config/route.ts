@@ -6,7 +6,8 @@ import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 // Saves which Notion pages/databases should sync to a bot.
 // Body: { botId, selectedPages, selectedDatabases, notionEnabled, syncFrequency? }
 export async function POST(req: NextRequest) {
-  const supabase = getSupabaseServerClient();
+  const supabase = await getSupabaseServerClient();
+  if (!supabase) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
