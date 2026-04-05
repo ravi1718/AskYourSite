@@ -143,7 +143,7 @@ const INTEGRATIONS: Integration[] = [
     logo: <ZapierLogo size={36} />,
     accentColor: "#FF4A00",
     provider: "zapier",
-    functional: false,
+    functional: true,
   },
   {
     id: "slack",
@@ -161,7 +161,7 @@ const INTEGRATIONS: Integration[] = [
     logo: <NotionLogo size={36} />,
     accentColor: "#ffffff",
     provider: "notion",
-    functional: false,
+    functional: true,
   },
   {
     id: "google_docs",
@@ -664,10 +664,462 @@ function SlackAssistantConfig() {
   );
 }
 
+// ─── Zapier Config Panel ──────────────────────────────────────────────────────
+
+function ZapierAssistantConfig() {
+  const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<{ id: string; label: string; key_prefix: string; created_at: string; last_used_at: string | null }[]>([]);
+  const [newKeyLabel, setNewKeyLabel] = useState("");
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [assistants, setAssistants] = useState<{ id: string; name: string; zapierEnabled: boolean }[]>([]);
+  const [assistantSaving, setAssistantSaving] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const [usageRes, keysRes, assRes] = await Promise.all([
+        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
+        fetch("/api/keys"),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+      ]);
+      setPlan((usageRes.data as any)?.plan_code ?? "starter");
+      if (keysRes.ok) {
+        const { keys } = await keysRes.json();
+        setApiKeys(keys ?? []);
+      }
+      setAssistants((assRes.data ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        zapierEnabled: r.widget_config?.zapierEnabled === true,
+      })));
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    const res = await fetch("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label: newKeyLabel || "Default Key" }),
+    });
+    const data = await res.json();
+    if (data.key) {
+      setRevealedKey(data.key);
+      setApiKeys((prev) => [{ id: data.id, label: data.label, key_prefix: data.key_prefix, created_at: data.created_at, last_used_at: null }, ...prev]);
+      setNewKeyLabel("");
+    }
+    setGenerating(false);
+  }
+
+  async function handleRevoke(id: string) {
+    setRevoking(id);
+    await fetch(`/api/keys/${id}`, { method: "DELETE" });
+    setApiKeys((prev) => prev.filter((k) => k.id !== id));
+    setRevoking(null);
+  }
+
+  async function handleAssistantToggle(assistantId: string) {
+    const current = assistants.find((a) => a.id === assistantId);
+    if (!current) return;
+    const next = !current.zapierEnabled;
+    setAssistants((prev) => prev.map((a) => a.id === assistantId ? { ...a, zapierEnabled: next } : a));
+    setAssistantSaving((s) => ({ ...s, [assistantId]: true }));
+    await fetch("/api/integrations/zapier/assistant-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assistantId, zapierEnabled: next }),
+    });
+    setAssistantSaving((s) => ({ ...s, [assistantId]: false }));
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mb-4" />
+        <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-10 bg-white/5 rounded-xl animate-pulse" />)}</div>
+      </div>
+    );
+  }
+
+  const isLocked = plan !== "pro" && plan !== "business";
+
+  return (
+    <div className="rounded-2xl border border-[#FF4A00]/20 bg-[#FF4A00]/5 p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <ZapierLogo size={24} />
+        <h2 className="text-base font-semibold text-white">Zapier Integration</h2>
+      </div>
+
+      {isLocked && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          🔒 Zapier integration requires a <strong>Pro plan</strong>.
+        </div>
+      )}
+
+      {/* Revealed key banner */}
+      {revealedKey && (
+        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+          <p className="text-xs font-semibold text-emerald-400 mb-1">⚠ Save this key now — it won&apos;t be shown again</p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs text-white bg-black/30 rounded px-3 py-2 font-mono break-all">{revealedKey}</code>
+            <button
+              onClick={() => { navigator.clipboard.writeText(revealedKey); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+              className="shrink-0 rounded-lg bg-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <button onClick={() => setRevealedKey(null)} className="mt-2 text-xs text-slate-500 hover:text-slate-400">Dismiss</button>
+        </div>
+      )}
+
+      {/* API Keys */}
+      <div className="mb-6">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">API Keys</p>
+        {apiKeys.length === 0 ? (
+          <p className="text-sm text-slate-500 mb-3">No API keys yet. Generate one to connect Zapier.</p>
+        ) : (
+          <div className="space-y-2 mb-3">
+            {apiKeys.map((k) => (
+              <div key={k.id} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{k.label}</p>
+                  <p className="text-xs text-slate-500 font-mono">{k.key_prefix}•••••••••••••••••••••••••</p>
+                </div>
+                <button
+                  onClick={() => handleRevoke(k.id)}
+                  disabled={revoking === k.id}
+                  className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                >
+                  {revoking === k.id ? "Revoking…" : "Revoke"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Key label (e.g. Production)"
+            value={newKeyLabel}
+            onChange={(e) => setNewKeyLabel(e.target.value)}
+            disabled={isLocked}
+            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm text-white placeholder-slate-600 disabled:opacity-40"
+          />
+          <button
+            onClick={handleGenerate}
+            disabled={isLocked || generating}
+            className="shrink-0 rounded-lg bg-[#FF4A00] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e03e00] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {generating ? "Generating…" : "Generate Key"}
+          </button>
+        </div>
+      </div>
+
+      {/* Per-assistant toggles */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Assistants (send to Zapier)</p>
+        {assistants.length === 0 ? (
+          <p className="text-sm text-slate-500">No assistants yet. <a href="/dashboard/assistants/new" className="text-primary underline">Create one first.</a></p>
+        ) : (
+          <div className="space-y-2">
+            {assistants.map((a) => (
+              <div key={a.id} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
+                <span className="text-sm font-medium text-white">{a.name}</span>
+                <button
+                  onClick={() => !isLocked && handleAssistantToggle(a.id)}
+                  disabled={isLocked || assistantSaving[a.id]}
+                  className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${isLocked ? "opacity-40 cursor-not-allowed" : "cursor-pointer"} ${a.zapierEnabled && !isLocked ? "bg-[#FF4A00]" : "bg-slate-700"}`}
+                >
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${a.zapierEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Zap template links */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Pre-built Zap Templates</p>
+        <div className="space-y-1.5">
+          {[
+            "New Lead → Add row to Google Sheets",
+            "New Lead → Create contact in HubSpot",
+            "Unanswered Question → Send Slack message",
+            "Booking Confirmed → Add event to Google Calendar",
+            "New Conversation → Send email via Gmail",
+          ].map((t) => (
+            <div key={t} className="flex items-center gap-2 text-sm text-slate-400">
+              <span className="text-[#FF4A00]">⚡</span> {t}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Notion Config Panel ──────────────────────────────────────────────────────
+
+function NotionAssistantConfig() {
+  const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [integration, setIntegration] = useState<{ workspace_name: string } | null>(null);
+  const [pages, setPages] = useState<{ id: string; title: string }[]>([]);
+  const [databases, setDatabases] = useState<{ id: string; title: string }[]>([]);
+  const [pagesLoading, setPagesLoading] = useState(false);
+  const [assistants, setAssistants] = useState<{
+    id: string; name: string; notionEnabled: boolean;
+    selectedPages: string[]; selectedDatabases: string[];
+    lastSyncedAt: string | null; syncStatus: string;
+  }[]>([]);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [usageRes, integrationRes, assRes, syncRes] = await Promise.all([
+        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
+        supabase.from("user_integrations").select("metadata").eq("user_id", user.id).eq("provider", "notion").single(),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+        supabase.from("notion_sync_configs").select("bot_id, selected_pages, selected_databases, last_synced_at, status").eq("user_id", user.id),
+      ]);
+
+      setPlan((usageRes.data as any)?.plan_code ?? "starter");
+
+      if (integrationRes.data?.metadata) {
+        const meta = integrationRes.data.metadata as Record<string, any>;
+        setIntegration({ workspace_name: meta.workspace_name ?? "" });
+
+        // Fetch pages after confirming connected
+        setPagesLoading(true);
+        fetch("/api/integrations/notion/pages")
+          .then((r) => r.json())
+          .then((d) => { setPages(d.pages ?? []); setDatabases(d.databases ?? []); })
+          .finally(() => setPagesLoading(false));
+      }
+
+      const syncMap = Object.fromEntries(
+        (syncRes.data ?? []).map((s: any) => [s.bot_id, s])
+      );
+
+      setAssistants((assRes.data ?? []).map((r: any) => {
+        const sync = syncMap[r.id];
+        return {
+          id: r.id,
+          name: r.name,
+          notionEnabled: r.widget_config?.notionEnabled === true,
+          selectedPages: sync?.selected_pages?.map((p: any) => p.id) ?? [],
+          selectedDatabases: sync?.selected_databases?.map((d: any) => d.id) ?? [],
+          lastSyncedAt: sync?.last_synced_at ?? null,
+          syncStatus: sync?.status ?? "not_configured",
+        };
+      }));
+
+      setLoading(false);
+    })();
+  }, []);
+
+  async function handleSaveConfig(assistantId: string) {
+    const a = assistants.find((x) => x.id === assistantId);
+    if (!a) return;
+    setSaving((s) => ({ ...s, [assistantId]: true }));
+    const selPages = pages.filter((p) => a.selectedPages.includes(p.id)).map((p) => ({ id: p.id, title: p.title }));
+    const selDBs = databases.filter((d) => a.selectedDatabases.includes(d.id)).map((d) => ({ id: d.id, title: d.title }));
+    await fetch("/api/integrations/notion/sync-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botId: assistantId, selectedPages: selPages, selectedDatabases: selDBs, notionEnabled: a.notionEnabled }),
+    });
+    setSaving((s) => ({ ...s, [assistantId]: false }));
+  }
+
+  async function handleSyncNow(assistantId: string) {
+    setSyncing((s) => ({ ...s, [assistantId]: true }));
+    await fetch("/api/integrations/notion/sync-now", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botId: assistantId }),
+    });
+    setSyncing((s) => ({ ...s, [assistantId]: false }));
+    setAssistants((prev) => prev.map((a) => a.id === assistantId ? { ...a, lastSyncedAt: new Date().toISOString(), syncStatus: "active" } : a));
+  }
+
+  function togglePage(assistantId: string, pageId: string) {
+    setAssistants((prev) => prev.map((a) => {
+      if (a.id !== assistantId) return a;
+      const has = a.selectedPages.includes(pageId);
+      return { ...a, selectedPages: has ? a.selectedPages.filter((p) => p !== pageId) : [...a.selectedPages, pageId] };
+    }));
+  }
+
+  function toggleDatabase(assistantId: string, dbId: string) {
+    setAssistants((prev) => prev.map((a) => {
+      if (a.id !== assistantId) return a;
+      const has = a.selectedDatabases.includes(dbId);
+      return { ...a, selectedDatabases: has ? a.selectedDatabases.filter((d) => d !== dbId) : [...a.selectedDatabases, dbId] };
+    }));
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mb-4" />
+        <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />)}</div>
+      </div>
+    );
+  }
+
+  const isLocked = plan !== "pro" && plan !== "business";
+
+  if (!integration) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <NotionLogo size={24} />
+          <h2 className="text-base font-semibold text-white">Connect Notion</h2>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">
+          Sync Notion pages and databases as training sources. Your bot learns from your documentation automatically.
+        </p>
+        {isLocked ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+            Notion sync is available on the <strong>Pro plan</strong>.
+          </div>
+        ) : (
+          <a
+            href="/api/integrations/notion/connect"
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-slate-100 transition-colors"
+          >
+            <NotionLogo size={16} /> Connect Notion
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <NotionLogo size={24} />
+          <h2 className="text-base font-semibold text-white">Notion Sync</h2>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          {integration.workspace_name || "Connected"}
+        </span>
+      </div>
+
+      {isLocked && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          🔒 Upgrade to Pro to enable Notion sync
+        </div>
+      )}
+
+      {assistants.length === 0 ? (
+        <p className="text-sm text-slate-500">No assistants yet. <a href="/dashboard/assistants/new" className="text-primary underline">Create one first.</a></p>
+      ) : (
+        <div className="space-y-4">
+          {assistants.map((a) => (
+            <div key={a.id} className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-white">{a.name}</span>
+                <div className="flex items-center gap-3">
+                  {a.lastSyncedAt && (
+                    <span className="text-xs text-slate-500">
+                      Last synced: {new Date(a.lastSyncedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${a.syncStatus === "active" ? "text-emerald-400" : a.syncStatus === "error" ? "text-red-400" : "text-slate-500"}`}>
+                    {a.syncStatus === "active" ? "● Synced" : a.syncStatus === "error" ? "● Error" : "○ Not configured"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Pages */}
+              {pagesLoading ? (
+                <div className="h-8 bg-white/5 rounded animate-pulse mb-2" />
+              ) : pages.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs text-slate-500 mb-1.5">Pages</p>
+                  <div className="flex flex-wrap gap-2">
+                    {pages.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => !isLocked && togglePage(a.id, p.id)}
+                        disabled={isLocked}
+                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedPages.includes(p.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
+                      >
+                        {p.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Databases */}
+              {databases.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-slate-500 mb-1.5">Databases</p>
+                  <div className="flex flex-wrap gap-2">
+                    {databases.map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => !isLocked && toggleDatabase(a.id, d.id)}
+                        disabled={isLocked}
+                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedDatabases.includes(d.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
+                      >
+                        {d.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => !isLocked && handleSaveConfig(a.id)}
+                  disabled={isLocked || saving[a.id]}
+                  className="rounded-lg bg-white/10 px-4 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition-colors disabled:opacity-40"
+                >
+                  {saving[a.id] ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => !isLocked && handleSyncNow(a.id)}
+                  disabled={isLocked || syncing[a.id] || a.syncStatus === "not_configured"}
+                  className="rounded-lg border border-white/10 px-4 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors disabled:opacity-40"
+                >
+                  {syncing[a.id] ? "Syncing…" : "Sync Now"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
   const [connectedProviders, setConnectedProviders] = useState<Set<string>>(new Set());
+  const [hasApiKey, setHasApiKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [openConfig, setOpenConfig] = useState<string | null>(null);
@@ -677,11 +1129,15 @@ export default function IntegrationsPage() {
     if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    const { data } = await supabase
-      .from("user_integrations")
-      .select("provider")
-      .eq("user_id", user.id);
-    setConnectedProviders(new Set((data ?? []).map((r: { provider: string }) => r.provider)));
+    const [intRes, keysRes] = await Promise.all([
+      supabase.from("user_integrations").select("provider").eq("user_id", user.id),
+      fetch("/api/keys"),
+    ]);
+    setConnectedProviders(new Set((intRes.data ?? []).map((r: { provider: string }) => r.provider)));
+    if (keysRes.ok) {
+      const { keys } = await keysRes.json();
+      setHasApiKey((keys ?? []).length > 0);
+    }
     setLoading(false);
   }
 
@@ -689,11 +1145,14 @@ export default function IntegrationsPage() {
     loadConnected();
 
     const params = new URLSearchParams(window.location.search);
-    if (params.get("success") === "calendly") {
-      setToast({ type: "success", message: "Calendly connected successfully!" });
-      window.history.replaceState({}, "", "/dashboard/integrations");
-    } else if (params.get("success") === "slack") {
-      setToast({ type: "success", message: "Slack connected successfully! Alerts are now enabled." });
+    const success = params.get("success");
+    const successMessages: Record<string, string> = {
+      calendly: "Calendly connected successfully!",
+      slack: "Slack connected successfully! Alerts are now enabled.",
+      notion: "Notion connected successfully! Select pages to sync.",
+    };
+    if (success && successMessages[success]) {
+      setToast({ type: "success", message: successMessages[success] });
       window.history.replaceState({}, "", "/dashboard/integrations");
     } else if (params.get("error")) {
       const errMap: Record<string, string> = {
@@ -701,7 +1160,7 @@ export default function IntegrationsPage() {
         token_exchange: "Failed to exchange code for tokens. Please try again.",
         invalid_state: "Authorization request expired or invalid. Please try again.",
         access_denied: "Authorization was denied.",
-        upgrade_required: "Slack integration requires a Pro or Business plan.",
+        upgrade_required: "This integration requires a Pro or Business plan.",
         server_error: "A server error occurred. Please try again.",
       };
       setToast({ type: "error", message: errMap[params.get("error")!] ?? "Connection failed." });
@@ -738,10 +1197,19 @@ export default function IntegrationsPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {INTEGRATIONS.flatMap((integration) => {
-            const isConnected = connectedProviders.has(integration.provider);
+            // Zapier "connected" = has an API key (not stored in user_integrations)
+            const isConnected = integration.id === "zapier"
+              ? hasApiKey
+              : connectedProviders.has(integration.provider);
+
+            // Show configure panel for these integrations regardless of connection state
+            // (each panel handles its own not-connected state internally)
             const canConfigure =
               (integration.id === "calendly" && isConnected) ||
-              (integration.id === "slack");  // Slack: always show configure (panel handles not-connected state)
+              integration.id === "slack" ||
+              integration.id === "zapier" ||
+              integration.id === "notion";
+
             const items: React.ReactNode[] = [
               <IntegrationCard
                 key={integration.id}
@@ -764,6 +1232,20 @@ export default function IntegrationsPage() {
               items.push(
                 <div key="slack-config" className="col-span-full">
                   <SlackAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "zapier" && openConfig === "zapier") {
+              items.push(
+                <div key="zapier-config" className="col-span-full">
+                  <ZapierAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "notion" && openConfig === "notion") {
+              items.push(
+                <div key="notion-config" className="col-span-full">
+                  <NotionAssistantConfig />
                 </div>
               );
             }

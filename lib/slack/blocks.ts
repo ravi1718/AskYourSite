@@ -158,6 +158,55 @@ export function unansweredBlock(params: {
   ];
 }
 
+// ─── Booking Confirmed ────────────────────────────────────────────────────────
+
+export function bookingBlock(params: {
+  botName: string;
+  inviteeName: string;
+  inviteeEmail: string;
+  meetingTitle: string;
+  meetingTime: string;
+  calendlyEventUrl: string;
+  conversationId: string;
+}): object[] {
+  const { botName, inviteeName, inviteeEmail, meetingTitle, meetingTime, calendlyEventUrl, conversationId } = params;
+  const formattedTime = new Date(meetingTime).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  });
+  return [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*📅 Booking Confirmed — ${botName}*` },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Name:*\n${inviteeName}` },
+        { type: "mrkdwn", text: `*Email:*\n${inviteeEmail}` },
+        { type: "mrkdwn", text: `*Meeting:*\n${meetingTitle}` },
+        { type: "mrkdwn", text: `*Time:*\n${formattedTime}` },
+      ],
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "View Calendly Event" },
+          url: calendlyEventUrl,
+          style: "primary",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "View Conversation" },
+          url: `${APP_URL}/dashboard/conversations/${conversationId}`,
+        },
+      ],
+    },
+  ];
+}
+
 // ─── Test Notification ────────────────────────────────────────────────────────
 
 export function testBlock(botName: string, enabledAlerts: string[]): object[] {

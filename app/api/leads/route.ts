@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
-import { sendSlackAlert } from "@/lib/slack/send-alert";
-import { leadBlock } from "@/lib/slack/blocks";
+import { dispatchEvent } from "@/lib/events/dispatch";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -77,24 +76,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Fire Slack lead alert non-blocking — email required for alert to have follow-up value
+    // Fire integration events non-blocking
     if (assistant.user_id && email) {
-      const effectiveSessionId = sessionId || "unknown";
-      const blocks = leadBlock({
+      dispatchEvent("lead.captured", {
+        userId: assistant.user_id,
+        botId: assistantId,
         botName: assistant.name ?? "Your bot",
-        leadName: name ?? null,
-        leadEmail: email,
-        firstMessage: firstMessage ?? "",
+        lead: { name: name ?? null, email, phone: phone ?? null },
+        sessionId: sessionId || "unknown",
         pageUrl: pageUrl ?? "",
-        conversationId: effectiveSessionId,
+        firstMessage: firstMessage ?? "",
+        timestamp: new Date().toISOString(),
       });
-      sendSlackAlert(
-        assistant.user_id,
-        assistantId,
-        effectiveSessionId,
-        "lead_captured",
-        blocks
-      ).catch((e) => console.error("[Slack] Lead alert failed:", e));
     }
 
     return NextResponse.json({ success: true }, { status: 200, headers: CORS_HEADERS });

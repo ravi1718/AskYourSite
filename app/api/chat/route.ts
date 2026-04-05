@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { detectBuyingIntent, detectUnanswered, normalizeQuestion, hashQuestion } from "@/lib/slack/detect";
-import { sendSlackAlert } from "@/lib/slack/send-alert";
-import { buyingIntentBlock, unansweredBlock } from "@/lib/slack/blocks";
+import { dispatchEvent } from "@/lib/events/dispatch";
 
 // In-memory rate limiter: 10 requests per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -615,49 +614,38 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
             });
           }
 
-          // Fire Slack alerts non-blocking after stream closes (never delays user response)
+          // Fire integration events non-blocking after stream closes (never delays user response)
           if (!isPreview && assistantData?.user_id && lastUserMessage) {
             const ownerId = assistantData.user_id as string;
             const botName = (assistantData.name as string | null) ?? "Your bot";
-            const adminForSlack = getSupabaseAdminClient();
 
-            (async () => {
-              // Buying intent alert
-              if (detectBuyingIntent(lastUserMessage)) {
-                const blocks = buyingIntentBlock({
-                  botName,
-                  visitorMessage: lastUserMessage,
-                  botResponse: cleanResponse,
-                  pageUrl: "",
-                  conversationId: chatSessionId,
-                });
-                await sendSlackAlert(ownerId, assistantId, chatSessionId, "buying_intent", blocks);
-              }
+            if (detectBuyingIntent(lastUserMessage)) {
+              dispatchEvent("intent.detected", {
+                userId: ownerId,
+                botId: assistantId,
+                botName,
+                intentType: "buying",
+                visitorMessage: lastUserMessage,
+                botResponse: cleanResponse,
+                sessionId: chatSessionId,
+                pageUrl: "",
+                timestamp: new Date().toISOString(),
+              });
+            }
 
-              // Unanswered question alert
-              if (detectUnanswered(cleanResponse)) {
-                const normalized = normalizeQuestion(lastUserMessage);
-                const hash = hashQuestion(normalized);
-                // Count today's occurrences to populate "asked N times today"
-                const { count: todayCount } = adminForSlack
-                  ? await adminForSlack
-                      .from("slack_alert_log")
-                      .select("id", { count: "exact", head: true })
-                      .eq("user_id", ownerId)
-                      .eq("alert_type", "unanswered")
-                      .eq("question_hash", hash)
-                      .gte("sent_at", new Date(Date.now() - 86400000).toISOString())
-                  : { count: 0 };
-                const blocks = unansweredBlock({
-                  botName,
-                  botId: assistantId,
-                  question: lastUserMessage,
-                  count: (todayCount ?? 0) + 1,
-                  conversationId: chatSessionId,
-                });
-                await sendSlackAlert(ownerId, assistantId, chatSessionId, "unanswered", blocks, hash);
-              }
-            })().catch((e) => console.error("[Slack] Chat alert failed:", e));
+            if (detectUnanswered(cleanResponse)) {
+              const normalized = normalizeQuestion(lastUserMessage);
+              const hash = hashQuestion(normalized);
+              dispatchEvent("question.unanswered", {
+                userId: ownerId,
+                botId: assistantId,
+                botName,
+                question: lastUserMessage,
+                questionHash: hash,
+                sessionId: chatSessionId,
+                timestamp: new Date().toISOString(),
+              });
+            }
           }
         }
       }

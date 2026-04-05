@@ -1,12 +1,13 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
 
-export type AlertType = "lead_captured" | "buying_intent" | "unanswered";
+export type AlertType = "lead_captured" | "buying_intent" | "unanswered" | "booking_confirmed";
 
 const TOGGLE_KEYS: Record<AlertType, string> = {
   lead_captured: "alert_new_lead",
   buying_intent: "alert_buying_intent",
   unanswered: "alert_unanswered",
+  booking_confirmed: "alert_booking_confirmed",
 };
 
 /**
