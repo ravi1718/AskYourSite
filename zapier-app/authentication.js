@@ -1,4 +1,4 @@
-const APP_URL = process.env.APP_URL || "https://app.askyoursite.in";
+const APP_URL = process.env.APP_URL || "https://askyoursite.in";
 
 const authentication = {
   type: "custom",
