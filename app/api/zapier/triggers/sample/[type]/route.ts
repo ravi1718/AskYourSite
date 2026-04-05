@@ -30,9 +30,10 @@ const SAMPLES: Record<string, object[]> = {
 // GET /api/zapier/triggers/sample/[type] — no auth required
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { type: string } }
+  { params }: { params: Promise<{ type: string }> }
 ) {
-  const samples = SAMPLES[params.type];
+  const { type } = await params;
+  const samples = SAMPLES[type];
   if (!samples) {
     return NextResponse.json({ error: "Unknown trigger type" }, { status: 404 });
   }
