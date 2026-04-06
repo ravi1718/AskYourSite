@@ -258,3 +258,9 @@ textarea {
   background: #0A0A0A;
   z-index: -1;
 }
+
+
+/* ─── Docs: highlight.js background override ─── */
+.hljs {
+  background: transparent !important;
+}

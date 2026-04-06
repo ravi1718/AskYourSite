@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ChatWidget } from "@/components/chat-widget";
+import { GlobalChatWidget } from "@/components/global-chat-widget";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { FaviconLoader } from "@/components/favicon-loader";
 import "./globals.css";
@@ -84,7 +84,7 @@ export default function RootLayout({
         <NavigationProgress />
         <ThemeProvider>
           {children}
-          <ChatWidget assistantId={process.env.NEXT_PUBLIC_AYS_ASSISTANT_ID} />
+          <GlobalChatWidget assistantId={process.env.NEXT_PUBLIC_AYS_ASSISTANT_ID} />
         </ThemeProvider>
         <FaviconLoader />
       </body>

@@ -219,6 +219,7 @@ export default function Home() {
             <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
           </nav>
 
           {/* CTAs */}
@@ -249,6 +250,7 @@ export default function Home() {
             <a href="#how-it-works" className="text-sm text-slate-400 hover:text-white">How it works</a>
             <a href="#features" className="text-sm text-slate-400 hover:text-white">Features</a>
             <a href="#pricing" className="text-sm text-slate-400 hover:text-white">Pricing</a>
+            <Link href="/docs" className="text-sm text-slate-400 hover:text-white">Docs</Link>
             <Link href="/login" className="text-sm text-slate-400 hover:text-white">Log in</Link>
             <Link href="/login" className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-semibold text-white">
               Get Started <ArrowRight className="h-3.5 w-3.5" />

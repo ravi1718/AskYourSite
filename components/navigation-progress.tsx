@@ -19,18 +19,22 @@ export function NavigationProgress() {
     if (timerRef.current) clearInterval(timerRef.current);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
 
-    setVisible(true);
-    setProgress(15);
+    // Defer state updates out of the synchronous pushState call.
+    // React 19 forbids scheduling updates during the commit phase.
+    setTimeout(() => {
+      setVisible(true);
+      setProgress(15);
 
-    timerRef.current = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 85) {
-          clearInterval(timerRef.current!);
-          return 85;
-        }
-        return prev + (85 - prev) * 0.08;
-      });
-    }, 100);
+      timerRef.current = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 85) {
+            clearInterval(timerRef.current!);
+            return 85;
+          }
+          return prev + (85 - prev) * 0.08;
+        });
+      }, 100);
+    }, 0);
   }
 
   // Intercept history.pushState — fired by Next.js Link and router.push
