@@ -3,6 +3,9 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncNotionConfig } from "@/lib/notion/sync";
 
+// Allow up to 60 seconds — Notion sync is synchronous now (not fire-and-forget)
+export const maxDuration = 60;
+
 // POST /api/integrations/notion/sync-now
 // Triggers an immediate Notion sync for a specific bot.
 // Body: { botId }
@@ -29,10 +32,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No sync config found for this bot" }, { status: 404 });
   }
 
-  // Run sync non-blocking — return immediately so UI doesn't hang
-  syncNotionConfig(config.id).catch((e) =>
-    console.error("[Notion] sync-now failed for config", config.id, ":", e)
-  );
+  try {
+    await syncNotionConfig(config.id);
+  } catch (e) {
+    console.error("[Notion] sync-now failed for config", config.id, ":", e);
+    return NextResponse.json({ error: "Sync failed" }, { status: 500 });
+  }
 
-  return NextResponse.json({ ok: true, message: "Sync started" });
+  return NextResponse.json({ ok: true, message: "Sync complete" });
 }

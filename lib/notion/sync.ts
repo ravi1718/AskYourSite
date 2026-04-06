@@ -67,9 +67,18 @@ export async function syncNotionConfig(configId: string): Promise<void> {
     }
 
     if (allContent.length === 0) {
+      const hasNoPages =
+        (config.selected_pages ?? []).length === 0 &&
+        (config.selected_databases ?? []).length === 0;
       await admin
         .from("notion_sync_configs")
-        .update({ status: "active", last_synced_at: new Date().toISOString(), last_error: null })
+        .update({
+          status: "active",
+          last_error: hasNoPages
+            ? "No pages selected. Open Configure and select at least one Notion page."
+            : "Selected pages have no readable text content.",
+          // Do NOT update last_synced_at — nothing was actually synced
+        })
         .eq("id", configId);
       return;
     }

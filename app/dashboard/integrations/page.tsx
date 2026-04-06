@@ -881,7 +881,7 @@ function NotionAssistantConfig() {
     id: string; name: string; notionEnabled: boolean;
     selectedPages: { id: string; title: string }[];
     selectedDatabases: { id: string; title: string }[];
-    lastSyncedAt: string | null; syncStatus: string;
+    lastSyncedAt: string | null; syncStatus: string; lastError: string | null;
   }[]>([]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
@@ -897,7 +897,7 @@ function NotionAssistantConfig() {
         supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
         supabase.from("user_integrations").select("metadata").eq("user_id", user.id).eq("provider", "notion").single(),
         supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
-        supabase.from("notion_sync_configs").select("bot_id, selected_pages, selected_databases, last_synced_at, status").eq("user_id", user.id),
+        supabase.from("notion_sync_configs").select("bot_id, selected_pages, selected_databases, last_synced_at, status, last_error").eq("user_id", user.id),
       ]);
 
       setPlan((usageRes.data as any)?.plan_code ?? "starter");
@@ -928,6 +928,7 @@ function NotionAssistantConfig() {
           selectedDatabases: sync?.selected_databases ?? [],
           lastSyncedAt: sync?.last_synced_at ?? null,
           syncStatus: sync?.status ?? "not_configured",
+          lastError: sync?.last_error ?? null,
         };
       }));
 
@@ -958,7 +959,23 @@ function NotionAssistantConfig() {
       body: JSON.stringify({ botId: assistantId }),
     });
     setSyncing((s) => ({ ...s, [assistantId]: false }));
-    setAssistants((prev) => prev.map((a) => a.id === assistantId ? { ...a, lastSyncedAt: new Date().toISOString(), syncStatus: "active" } : a));
+    // Re-fetch actual status from DB (sync is now synchronous, so status is final)
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data } = await supabase
+      .from("notion_sync_configs")
+      .select("last_synced_at, status, last_error")
+      .eq("bot_id", assistantId)
+      .single();
+    if (data) {
+      setAssistants((prev) =>
+        prev.map((a) =>
+          a.id === assistantId
+            ? { ...a, lastSyncedAt: data.last_synced_at, syncStatus: data.status, lastError: data.last_error ?? null }
+            : a
+        )
+      );
+    }
   }
 
   function togglePage(assistantId: string, page: { id: string; title: string }) {
@@ -1047,23 +1064,54 @@ function NotionAssistantConfig() {
                       Last synced: {new Date(a.lastSyncedAt).toLocaleDateString()}
                     </span>
                   )}
-                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${a.syncStatus === "active" ? "text-emerald-400" : a.syncStatus === "error" ? "text-red-400" : "text-slate-500"}`}>
-                    {a.syncStatus === "active" ? "● Synced" : a.syncStatus === "error" ? "● Error" : "○ Not configured"}
+                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${a.syncStatus === "active" && !a.lastError ? "text-emerald-400" : a.syncStatus === "error" || a.lastError ? "text-red-400" : "text-slate-500"}`}>
+                    {a.syncStatus === "active" && !a.lastError ? "● Synced" : a.syncStatus === "error" || a.lastError ? "● Error" : "○ Not configured"}
                   </span>
                 </div>
               </div>
+              {a.lastError && (
+                <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400">
+                  {a.lastError}
+                </div>
+              )}
 
               {/* Pages */}
               {pagesLoading ? (
                 <div className="h-8 bg-white/5 rounded animate-pulse mb-2" />
               ) : pages.length === 0 && !pagesLoading && (
                 <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
-                  No pages found. In Notion, open each page → click <strong>Share</strong> → <strong>Invite</strong> → select the <strong>AskYourSite</strong> integration, then refresh this page.
+                  No pages found. In Notion, open each page → click <strong>Share</strong> → <strong>Invite</strong> → select the <strong>AskYourSite</strong> integration, then{" "}
+                  <button
+                    onClick={() => {
+                      setPagesLoading(true);
+                      fetch("/api/integrations/notion/pages")
+                        .then((r) => r.json())
+                        .then((d) => { setPages(d.pages ?? []); setDatabases(d.databases ?? []); })
+                        .finally(() => setPagesLoading(false));
+                    }}
+                    className="underline hover:text-amber-300"
+                  >
+                    click here to refresh
+                  </button>.
                 </div>
               )}
               {!pagesLoading && pages.length > 0 && (
                 <div className="mb-2">
-                  <p className="text-xs text-slate-500 mb-1.5">Pages</p>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs text-slate-500">Pages</p>
+                    <button
+                      onClick={() => {
+                        setPagesLoading(true);
+                        fetch("/api/integrations/notion/pages")
+                          .then((r) => r.json())
+                          .then((d) => { setPages(d.pages ?? []); setDatabases(d.databases ?? []); })
+                          .finally(() => setPagesLoading(false));
+                      }}
+                      className="text-xs text-slate-600 hover:text-slate-300 underline"
+                    >
+                      Refresh
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {pages.map((p) => (
                       <button
