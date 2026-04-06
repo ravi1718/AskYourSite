@@ -92,6 +92,58 @@ function GoogleSheetsLogo({ size = 32 }: { size?: number }) {
   );
 }
 
+function GoogleDriveLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#101010" />
+      {/* Google Drive: triangle split into 3 colored sections from centroid */}
+      {/* Blue - left section: top(16,5), bottomLeft(5,26), centroid(16,19) */}
+      <path d="M16 5L5 26L16 19Z" fill="#4285F4" />
+      {/* Yellow - bottom: bottomLeft(5,26), bottomRight(27,26), centroid(16,19) */}
+      <path d="M5 26L27 26L16 19Z" fill="#FBBC05" />
+      {/* Green - right section: top(16,5), bottomRight(27,26), centroid(16,19) */}
+      <path d="M27 26L16 5L16 19Z" fill="#34A853" />
+    </svg>
+  );
+}
+
+function HubSpotLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#101010" />
+      {/* HubSpot sprocket: center circle + 3 nodes (top, bottom-left, bottom-right) */}
+      {/* Top node */}
+      <rect x="14" y="5" width="4" height="8" rx="2" fill="#FF7A59" />
+      <circle cx="16" cy="5.5" r="2.5" fill="#FF7A59" />
+      {/* Bottom-left node */}
+      <line x1="13" y1="20" x2="8" y2="26" stroke="#FF7A59" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="7" cy="27" r="2.5" fill="#FF7A59" />
+      {/* Bottom-right node */}
+      <line x1="19" y1="20" x2="24" y2="26" stroke="#FF7A59" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="25" cy="27" r="2.5" fill="#FF7A59" />
+      {/* Center circle */}
+      <circle cx="16" cy="17" r="5" fill="#FF7A59" />
+      {/* Inner dot */}
+      <circle cx="16" cy="17" r="2" fill="#101010" />
+    </svg>
+  );
+}
+
+function AirtableLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#101010" />
+      {/* Airtable: stacked colored blocks */}
+      {/* Top block (yellow/gold) */}
+      <rect x="5" y="7" width="22" height="7" rx="2" fill="#FCB400" />
+      {/* Bottom-left block (red/pink) */}
+      <rect x="5" y="17" width="10" height="8" rx="2" fill="#F82B60" />
+      {/* Bottom-right block (cyan) */}
+      <rect x="17" y="17" width="10" height="8" rx="2" fill="#18BFFF" />
+    </svg>
+  );
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Integration {
@@ -166,20 +218,47 @@ const INTEGRATIONS: Integration[] = [
   {
     id: "google_docs",
     name: "Google Docs",
-    description: "Train your assistant directly from Google Docs without manual uploads.",
+    description: "Sync Google Docs as training sources — SOPs, FAQs, handbooks, always up to date.",
     logo: <GoogleDocsLogo size={36} />,
     accentColor: "#4285F4",
-    provider: "google_docs",
-    functional: false,
+    provider: "google",
+    functional: true,
   },
   {
     id: "google_sheets",
     name: "Google Sheets",
-    description: "Use spreadsheet data as a knowledge source for your AI assistant.",
+    description: "Train your bot on spreadsheet data — product catalogs, FAQs, price tables.",
     logo: <GoogleSheetsLogo size={36} />,
     accentColor: "#34A853",
-    provider: "google_sheets",
-    functional: false,
+    provider: "google",
+    functional: true,
+  },
+  {
+    id: "google_drive",
+    name: "Google Drive",
+    description: "Sync entire Drive folders — every Doc, Sheet, and PDF auto-trained on next sync.",
+    logo: <GoogleDriveLogo size={36} />,
+    accentColor: "#4285F4",
+    provider: "google",
+    functional: true,
+  },
+  {
+    id: "hubspot",
+    name: "HubSpot",
+    description: "Sync your HubSpot knowledge base and blog — support bots that always have the answer.",
+    logo: <HubSpotLogo size={36} />,
+    accentColor: "#FF7A59",
+    provider: "hubspot",
+    functional: true,
+  },
+  {
+    id: "airtable",
+    name: "Airtable",
+    description: "Sync Airtable bases as knowledge sources — product data, directories, playbooks.",
+    logo: <AirtableLogo size={36} />,
+    accentColor: "#FCB400",
+    provider: "airtable",
+    functional: true,
   },
 ];
 
@@ -1170,6 +1249,396 @@ function NotionAssistantConfig() {
   );
 }
 
+// ─── Reusable: Generic Sync Config Panel ─────────────────────────────────────
+// Used by Google Docs, Google Sheets, Google Drive, HubSpot, Airtable
+
+interface SyncResource {
+  id: string;
+  title: string;
+  subtitle?: string; // e.g. sheet name, folder path
+}
+
+interface GenericSyncAssistant {
+  id: string;
+  name: string;
+  selectedResources: SyncResource[];
+  lastSyncedAt: string | null;
+  syncStatus: string;
+  lastError: string | null;
+}
+
+function GenericSyncConfigPanel({
+  providerName,
+  providerKey,
+  logo,
+  connectHref,
+  resourceLabel,
+  resourcesApiPath,
+  syncConfigApiPath,
+  syncNowApiPath,
+  syncConfigsTable,
+  selectedField,
+  accentColor,
+}: {
+  providerName: string;
+  providerKey: string;   // "google" | "hubspot" | "airtable"
+  logo: React.ReactNode;
+  connectHref: string;
+  resourceLabel: string; // "documents" | "sheets" | "folders" | "articles" | "bases"
+  resourcesApiPath: string;
+  syncConfigApiPath: string;
+  syncNowApiPath: string;
+  syncConfigsTable: string;
+  selectedField: string; // DB column name for selected items JSONB
+  accentColor: string;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [resources, setResources] = useState<SyncResource[]>([]);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
+  const [assistants, setAssistants] = useState<GenericSyncAssistant[]>([]);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    (async () => {
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [usageRes, integrationRes, assRes, syncRes] = await Promise.all([
+        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
+        supabase.from("user_integrations").select("id").eq("user_id", user.id).eq("provider", providerKey).maybeSingle(),
+        supabase.from("assistants").select("id, name").eq("user_id", user.id).order("created_at"),
+        supabase.from(syncConfigsTable).select(`bot_id, ${selectedField}, last_synced_at, status, last_error`).eq("user_id", user.id),
+      ]);
+
+      setPlan((usageRes.data as any)?.plan_code ?? "starter");
+
+      if (integrationRes.data) {
+        setConnected(true);
+        setResourcesLoading(true);
+        fetch(resourcesApiPath)
+          .then((r) => r.json())
+          .then((d) => setResources(d.resources ?? []))
+          .finally(() => setResourcesLoading(false));
+      }
+
+      const syncMap = Object.fromEntries(
+        (syncRes.data ?? []).map((s: any) => [s.bot_id, s])
+      );
+
+      setAssistants((assRes.data ?? []).map((r: any) => {
+        const sync = syncMap[r.id];
+        return {
+          id: r.id,
+          name: r.name,
+          selectedResources: sync?.[selectedField] ?? [],
+          lastSyncedAt: sync?.last_synced_at ?? null,
+          syncStatus: sync?.status ?? "not_configured",
+          lastError: sync?.last_error ?? null,
+        };
+      }));
+
+      setLoading(false);
+    })();
+  }, []);
+
+  function toggleResource(assistantId: string, resource: SyncResource) {
+    setAssistants((prev) => prev.map((a) => {
+      if (a.id !== assistantId) return a;
+      const has = a.selectedResources.some((r) => r.id === resource.id);
+      return { ...a, selectedResources: has ? a.selectedResources.filter((r) => r.id !== resource.id) : [...a.selectedResources, resource] };
+    }));
+  }
+
+  async function handleSave(assistantId: string) {
+    const a = assistants.find((x) => x.id === assistantId);
+    if (!a) return;
+    setSaving((s) => ({ ...s, [assistantId]: true }));
+    await fetch(syncConfigApiPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botId: assistantId, selectedResources: a.selectedResources }),
+    });
+    setSaving((s) => ({ ...s, [assistantId]: false }));
+    handleSyncNow(assistantId);
+  }
+
+  async function handleSyncNow(assistantId: string) {
+    setSyncing((s) => ({ ...s, [assistantId]: true }));
+    await fetch(syncNowApiPath, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ botId: assistantId }),
+    });
+    setSyncing((s) => ({ ...s, [assistantId]: false }));
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) return;
+    const { data } = await supabase
+      .from(syncConfigsTable)
+      .select("last_synced_at, status, last_error")
+      .eq("bot_id", assistantId)
+      .single();
+    if (data) {
+      setAssistants((prev) =>
+        prev.map((a) =>
+          a.id === assistantId
+            ? { ...a, lastSyncedAt: data.last_synced_at, syncStatus: data.status, lastError: (data as any).last_error ?? null }
+            : a
+        )
+      );
+    }
+  }
+
+  function refreshResources() {
+    setResourcesLoading(true);
+    fetch(resourcesApiPath)
+      .then((r) => r.json())
+      .then((d) => setResources(d.resources ?? []))
+      .finally(() => setResourcesLoading(false));
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="h-5 w-48 bg-white/5 rounded animate-pulse mb-4" />
+        <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-16 bg-white/5 rounded-xl animate-pulse" />)}</div>
+      </div>
+    );
+  }
+
+  const isLocked = plan !== "pro" && plan !== "business";
+
+  if (!connected) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+        <div className="flex items-center gap-3 mb-3">
+          {logo}
+          <h2 className="text-base font-semibold text-white">Connect {providerName}</h2>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">
+          Connect your {providerName} account to train your assistants on your {resourceLabel}.
+        </p>
+        {isLocked ? (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
+            {providerName} sync is available on the <strong>Pro plan</strong>.
+          </div>
+        ) : (
+          <a
+            href={connectHref}
+            className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: accentColor }}
+          >
+            {logo} Connect {providerName}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {logo}
+          <h2 className="text-base font-semibold text-white">{providerName} Sync</h2>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-widest text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Connected
+        </span>
+      </div>
+
+      {isLocked && (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-400">
+          🔒 Upgrade to Pro to enable {providerName} sync
+        </div>
+      )}
+
+      {assistants.length === 0 ? (
+        <p className="text-sm text-slate-500">No assistants yet. <a href="/dashboard/assistants/new" className="text-primary underline">Create one first.</a></p>
+      ) : (
+        <div className="space-y-4">
+          {assistants.map((a) => (
+            <div key={a.id} className="rounded-xl border border-border bg-surface p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-white">{a.name}</span>
+                <div className="flex items-center gap-3">
+                  {a.lastSyncedAt && (
+                    <span className="text-xs text-slate-500">
+                      Last synced: {new Date(a.lastSyncedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                  <span className={`text-[10px] font-semibold uppercase tracking-widest ${a.syncStatus === "active" && !a.lastError ? "text-emerald-400" : a.syncStatus === "error" || a.lastError ? "text-red-400" : "text-slate-500"}`}>
+                    {a.syncStatus === "active" && !a.lastError ? "● Synced" : a.syncStatus === "error" || a.lastError ? "● Error" : "○ Not configured"}
+                  </span>
+                </div>
+              </div>
+
+              {a.lastError && (
+                <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs text-red-400">
+                  {a.lastError}
+                </div>
+              )}
+
+              {resourcesLoading ? (
+                <div className="h-8 bg-white/5 rounded animate-pulse mb-2" />
+              ) : resources.length === 0 ? (
+                <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
+                  No {resourceLabel} found.{" "}
+                  <button onClick={refreshResources} className="underline hover:text-amber-300">
+                    Click to refresh
+                  </button>
+                </div>
+              ) : (
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs text-slate-500 capitalize">{resourceLabel}</p>
+                    <button onClick={refreshResources} className="text-xs text-slate-600 hover:text-slate-300 underline">Refresh</button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {resources.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => !isLocked && toggleResource(a.id, r)}
+                        disabled={isLocked}
+                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedResources.some((sr) => sr.id === r.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
+                      >
+                        {r.title}
+                        {r.subtitle && <span className="ml-1 text-slate-600">{r.subtitle}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={() => !isLocked && handleSave(a.id)}
+                  disabled={isLocked || saving[a.id]}
+                  className="rounded-lg bg-white/10 px-4 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition-colors disabled:opacity-40"
+                >
+                  {saving[a.id] ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => !isLocked && handleSyncNow(a.id)}
+                  disabled={isLocked || syncing[a.id] || a.syncStatus === "not_configured"}
+                  className="rounded-lg border border-white/10 px-4 py-1.5 text-xs font-medium text-slate-300 hover:bg-white/10 transition-colors disabled:opacity-40"
+                >
+                  {syncing[a.id] ? "Syncing…" : "Sync Now"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Google Docs Config Panel ─────────────────────────────────────────────────
+
+function GoogleDocsAssistantConfig() {
+  return (
+    <GenericSyncConfigPanel
+      providerName="Google Docs"
+      providerKey="google"
+      logo={<GoogleDocsLogo size={20} />}
+      connectHref="/api/integrations/google/connect"
+      resourceLabel="documents"
+      resourcesApiPath="/api/integrations/google/docs"
+      syncConfigApiPath="/api/integrations/google/docs/sync-config"
+      syncNowApiPath="/api/integrations/google/docs/sync-now"
+      syncConfigsTable="google_docs_sync_configs"
+      selectedField="selected_docs"
+      accentColor="#4285F4"
+    />
+  );
+}
+
+// ─── Google Sheets Config Panel ───────────────────────────────────────────────
+
+function GoogleSheetsAssistantConfig() {
+  return (
+    <GenericSyncConfigPanel
+      providerName="Google Sheets"
+      providerKey="google"
+      logo={<GoogleSheetsLogo size={20} />}
+      connectHref="/api/integrations/google/connect"
+      resourceLabel="spreadsheets"
+      resourcesApiPath="/api/integrations/google/sheets"
+      syncConfigApiPath="/api/integrations/google/sheets/sync-config"
+      syncNowApiPath="/api/integrations/google/sheets/sync-now"
+      syncConfigsTable="google_sheets_sync_configs"
+      selectedField="selected_sheets"
+      accentColor="#34A853"
+    />
+  );
+}
+
+// ─── Google Drive Config Panel ────────────────────────────────────────────────
+
+function GoogleDriveAssistantConfig() {
+  return (
+    <GenericSyncConfigPanel
+      providerName="Google Drive"
+      providerKey="google"
+      logo={<GoogleDriveLogo size={20} />}
+      connectHref="/api/integrations/google/connect"
+      resourceLabel="folders"
+      resourcesApiPath="/api/integrations/google/drive"
+      syncConfigApiPath="/api/integrations/google/drive/sync-config"
+      syncNowApiPath="/api/integrations/google/drive/sync-now"
+      syncConfigsTable="google_drive_sync_configs"
+      selectedField="selected_folders"
+      accentColor="#4285F4"
+    />
+  );
+}
+
+// ─── HubSpot Config Panel ─────────────────────────────────────────────────────
+
+function HubSpotAssistantConfig() {
+  return (
+    <GenericSyncConfigPanel
+      providerName="HubSpot"
+      providerKey="hubspot"
+      logo={<HubSpotLogo size={20} />}
+      connectHref="/api/integrations/hubspot/connect"
+      resourceLabel="content sources"
+      resourcesApiPath="/api/integrations/hubspot/resources"
+      syncConfigApiPath="/api/integrations/hubspot/sync-config"
+      syncNowApiPath="/api/integrations/hubspot/sync-now"
+      syncConfigsTable="hubspot_sync_configs"
+      selectedField="selected_sources"
+      accentColor="#FF7A59"
+    />
+  );
+}
+
+// ─── Airtable Config Panel ────────────────────────────────────────────────────
+
+function AirtableAssistantConfig() {
+  return (
+    <GenericSyncConfigPanel
+      providerName="Airtable"
+      providerKey="airtable"
+      logo={<AirtableLogo size={20} />}
+      connectHref="/api/integrations/airtable/connect"
+      resourceLabel="tables"
+      resourcesApiPath="/api/integrations/airtable/bases"
+      syncConfigApiPath="/api/integrations/airtable/sync-config"
+      syncNowApiPath="/api/integrations/airtable/sync-now"
+      syncConfigsTable="airtable_sync_configs"
+      selectedField="selected_tables"
+      accentColor="#FCB400"
+    />
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -1205,6 +1674,9 @@ export default function IntegrationsPage() {
       calendly: "Calendly connected successfully!",
       slack: "Slack connected successfully! Alerts are now enabled.",
       notion: "Notion connected successfully! Select pages to sync.",
+      google: "Google connected! You can now sync Docs, Sheets, and Drive folders.",
+      hubspot: "HubSpot connected successfully! Select content to sync.",
+      airtable: "Airtable connected successfully! Select bases to sync.",
     };
     if (success && successMessages[success]) {
       setToast({ type: "success", message: successMessages[success] });
@@ -1247,7 +1719,7 @@ export default function IntegrationsPage() {
 
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 7 }).map((_, i) => (
+          {Array.from({ length: 10 }).map((_, i) => (
             <div key={i} className="rounded-2xl border border-border bg-surface p-6 h-48 animate-pulse" />
           ))}
         </div>
@@ -1265,7 +1737,12 @@ export default function IntegrationsPage() {
               (integration.id === "calendly" && isConnected) ||
               integration.id === "slack" ||
               integration.id === "zapier" ||
-              integration.id === "notion";
+              integration.id === "notion" ||
+              integration.id === "google_docs" ||
+              integration.id === "google_sheets" ||
+              integration.id === "google_drive" ||
+              integration.id === "hubspot" ||
+              integration.id === "airtable";
 
             const items: React.ReactNode[] = [
               <IntegrationCard
@@ -1303,6 +1780,41 @@ export default function IntegrationsPage() {
               items.push(
                 <div key="notion-config" className="col-span-full">
                   <NotionAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "google_docs" && openConfig === "google_docs") {
+              items.push(
+                <div key="google_docs-config" className="col-span-full">
+                  <GoogleDocsAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "google_sheets" && openConfig === "google_sheets") {
+              items.push(
+                <div key="google_sheets-config" className="col-span-full">
+                  <GoogleSheetsAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "google_drive" && openConfig === "google_drive") {
+              items.push(
+                <div key="google_drive-config" className="col-span-full">
+                  <GoogleDriveAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "hubspot" && openConfig === "hubspot") {
+              items.push(
+                <div key="hubspot-config" className="col-span-full">
+                  <HubSpotAssistantConfig />
+                </div>
+              );
+            }
+            if (integration.id === "airtable" && openConfig === "airtable") {
+              items.push(
+                <div key="airtable-config" className="col-span-full">
+                  <AirtableAssistantConfig />
                 </div>
               );
             }

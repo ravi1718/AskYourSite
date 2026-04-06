@@ -17,6 +17,18 @@
     {
       "path": "/api/cron/notion-sync",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/google-sync",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/hubspot-sync",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/airtable-sync",
+      "schedule": "0 3 * * *"
     }
   ]
 }
