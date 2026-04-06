@@ -9,8 +9,12 @@ module.exports = {
       "Triggers when a visitor submits their contact information (name/email) in your AskYourSite chatbot.",
   },
   operation: {
-    // Called when Zapier receives an incoming webhook payload
-    perform: (z, bundle) => [bundle.cleanedRequest.data],
+    perform: (z, bundle) => {
+      if (bundle.cleanedRequest && bundle.cleanedRequest.data) {
+        return [bundle.cleanedRequest.data];
+      }
+      return z.request({ url: `${APP_URL}/api/zapier/triggers/leads`, headers: { Authorization: `Bearer ${bundle.authData.api_key}` } }).then(r => r.data);
+    },
     // Sample data for Zap setup
     sample: {
       id: "sample-lead-1",

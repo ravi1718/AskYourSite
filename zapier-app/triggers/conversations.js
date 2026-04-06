@@ -8,7 +8,12 @@ module.exports = {
     description: "Triggers when a visitor sends their first message to your AskYourSite chatbot.",
   },
   operation: {
-    perform: (z, bundle) => [bundle.cleanedRequest.data],
+    perform: (z, bundle) => {
+      if (bundle.cleanedRequest && bundle.cleanedRequest.data) {
+        return [bundle.cleanedRequest.data];
+      }
+      return z.request({ url: `${APP_URL}/api/zapier/triggers/conversations`, headers: { Authorization: `Bearer ${bundle.authData.api_key}` } }).then(r => r.data);
+    },
     sample: {
       id: "sample-conv-1",
       bot_id: "sample-bot-1",

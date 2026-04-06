@@ -9,7 +9,12 @@ module.exports = {
       "Triggers when your AskYourSite bot couldn't answer a visitor's question. Use this to alert your team or add new content to your bot.",
   },
   operation: {
-    perform: (z, bundle) => [bundle.cleanedRequest.data],
+    perform: (z, bundle) => {
+      if (bundle.cleanedRequest && bundle.cleanedRequest.data) {
+        return [bundle.cleanedRequest.data];
+      }
+      return z.request({ url: `${APP_URL}/api/zapier/triggers/unanswered`, headers: { Authorization: `Bearer ${bundle.authData.api_key}` } }).then(r => r.data);
+    },
     sample: {
       id: "sample-unans-1",
       bot_id: "sample-bot-1",

@@ -159,7 +159,7 @@ const INTEGRATIONS: Integration[] = [
     name: "Notion",
     description: "Sync your Notion pages as training sources — always up to date.",
     logo: <NotionLogo size={36} />,
-    accentColor: "#ffffff",
+    accentColor: "#000000",
     provider: "notion",
     functional: true,
   },
@@ -879,7 +879,8 @@ function NotionAssistantConfig() {
   const [pagesLoading, setPagesLoading] = useState(false);
   const [assistants, setAssistants] = useState<{
     id: string; name: string; notionEnabled: boolean;
-    selectedPages: string[]; selectedDatabases: string[];
+    selectedPages: { id: string; title: string }[];
+    selectedDatabases: { id: string; title: string }[];
     lastSyncedAt: string | null; syncStatus: string;
   }[]>([]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
@@ -923,8 +924,8 @@ function NotionAssistantConfig() {
           id: r.id,
           name: r.name,
           notionEnabled: r.widget_config?.notionEnabled === true,
-          selectedPages: sync?.selected_pages?.map((p: any) => p.id) ?? [],
-          selectedDatabases: sync?.selected_databases?.map((d: any) => d.id) ?? [],
+          selectedPages: sync?.selected_pages ?? [],
+          selectedDatabases: sync?.selected_databases ?? [],
           lastSyncedAt: sync?.last_synced_at ?? null,
           syncStatus: sync?.status ?? "not_configured",
         };
@@ -938,14 +939,15 @@ function NotionAssistantConfig() {
     const a = assistants.find((x) => x.id === assistantId);
     if (!a) return;
     setSaving((s) => ({ ...s, [assistantId]: true }));
-    const selPages = pages.filter((p) => a.selectedPages.includes(p.id)).map((p) => ({ id: p.id, title: p.title }));
-    const selDBs = databases.filter((d) => a.selectedDatabases.includes(d.id)).map((d) => ({ id: d.id, title: d.title }));
+    // Use a.selectedPages directly — already {id,title} objects, no stale-closure risk
     await fetch("/api/integrations/notion/sync-config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ botId: assistantId, selectedPages: selPages, selectedDatabases: selDBs, notionEnabled: a.notionEnabled }),
+      body: JSON.stringify({ botId: assistantId, selectedPages: a.selectedPages, selectedDatabases: a.selectedDatabases, notionEnabled: a.notionEnabled }),
     });
     setSaving((s) => ({ ...s, [assistantId]: false }));
+    // Auto-trigger sync immediately so embeddings don't wait for cron
+    handleSyncNow(assistantId);
   }
 
   async function handleSyncNow(assistantId: string) {
@@ -959,19 +961,19 @@ function NotionAssistantConfig() {
     setAssistants((prev) => prev.map((a) => a.id === assistantId ? { ...a, lastSyncedAt: new Date().toISOString(), syncStatus: "active" } : a));
   }
 
-  function togglePage(assistantId: string, pageId: string) {
+  function togglePage(assistantId: string, page: { id: string; title: string }) {
     setAssistants((prev) => prev.map((a) => {
       if (a.id !== assistantId) return a;
-      const has = a.selectedPages.includes(pageId);
-      return { ...a, selectedPages: has ? a.selectedPages.filter((p) => p !== pageId) : [...a.selectedPages, pageId] };
+      const has = a.selectedPages.some((p) => p.id === page.id);
+      return { ...a, selectedPages: has ? a.selectedPages.filter((p) => p.id !== page.id) : [...a.selectedPages, page] };
     }));
   }
 
-  function toggleDatabase(assistantId: string, dbId: string) {
+  function toggleDatabase(assistantId: string, db: { id: string; title: string }) {
     setAssistants((prev) => prev.map((a) => {
       if (a.id !== assistantId) return a;
-      const has = a.selectedDatabases.includes(dbId);
-      return { ...a, selectedDatabases: has ? a.selectedDatabases.filter((d) => d !== dbId) : [...a.selectedDatabases, dbId] };
+      const has = a.selectedDatabases.some((d) => d.id === db.id);
+      return { ...a, selectedDatabases: has ? a.selectedDatabases.filter((d) => d.id !== db.id) : [...a.selectedDatabases, db] };
     }));
   }
 
@@ -1054,16 +1056,21 @@ function NotionAssistantConfig() {
               {/* Pages */}
               {pagesLoading ? (
                 <div className="h-8 bg-white/5 rounded animate-pulse mb-2" />
-              ) : pages.length > 0 && (
+              ) : pages.length === 0 && !pagesLoading && (
+                <div className="mb-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
+                  No pages found. In Notion, open each page → click <strong>Share</strong> → <strong>Invite</strong> → select the <strong>AskYourSite</strong> integration, then refresh this page.
+                </div>
+              )}
+              {!pagesLoading && pages.length > 0 && (
                 <div className="mb-2">
                   <p className="text-xs text-slate-500 mb-1.5">Pages</p>
                   <div className="flex flex-wrap gap-2">
                     {pages.map((p) => (
                       <button
                         key={p.id}
-                        onClick={() => !isLocked && togglePage(a.id, p.id)}
+                        onClick={() => !isLocked && togglePage(a.id, p)}
                         disabled={isLocked}
-                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedPages.includes(p.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
+                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedPages.some((sp) => sp.id === p.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
                       >
                         {p.title}
                       </button>
@@ -1080,9 +1087,9 @@ function NotionAssistantConfig() {
                     {databases.map((d) => (
                       <button
                         key={d.id}
-                        onClick={() => !isLocked && toggleDatabase(a.id, d.id)}
+                        onClick={() => !isLocked && toggleDatabase(a.id, d)}
                         disabled={isLocked}
-                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedDatabases.includes(d.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
+                        className={`rounded-lg border px-3 py-1 text-xs transition-colors disabled:opacity-40 ${a.selectedDatabases.some((sd) => sd.id === d.id) ? "border-white/30 bg-white/20 text-white" : "border-border text-slate-500 hover:border-white/20 hover:text-slate-300"}`}
                       >
                         {d.title}
                       </button>
@@ -1154,6 +1161,8 @@ export default function IntegrationsPage() {
     if (success && successMessages[success]) {
       setToast({ type: "success", message: successMessages[success] });
       window.history.replaceState({}, "", "/dashboard/integrations");
+      // Re-fetch connected state after OAuth redirect to pick up newly connected provider
+      loadConnected();
     } else if (params.get("error")) {
       const errMap: Record<string, string> = {
         no_code: "No authorization code received.",
