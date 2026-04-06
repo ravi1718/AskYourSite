@@ -95,6 +95,7 @@ async function fetchAllBlocks(blockId: string, accessToken: string): Promise<any
   let cursor: string | undefined;
 
   do {
+    await delay(150); // throttle real Notion API calls (not block processing)
     const url = `https://api.notion.com/v1/blocks/${blockId}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`;
     const data = await notionGet(url, accessToken);
     blocks.push(...(data.results ?? []));
@@ -118,7 +119,6 @@ export async function extractNotionPageContent(
   for (const block of blocks) {
     const text = await extractBlock(block, accessToken);
     if (text.trim()) parts.push(text.trim());
-    await delay(REQUEST_DELAY_MS);
   }
 
   return parts.join("\n\n");
@@ -136,6 +136,7 @@ export async function extractNotionDatabaseContent(
   let cursor: string | undefined;
 
   do {
+    await delay(150); // throttle each database pagination call
     const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
       method: "POST",
       headers: {
@@ -187,7 +188,6 @@ export async function extractNotionDatabaseContent(
     }
 
     cursor = data.has_more ? data.next_cursor : undefined;
-    await delay(REQUEST_DELAY_MS);
   } while (cursor);
 
   return chunks;

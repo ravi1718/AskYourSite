@@ -129,25 +129,27 @@ export async function syncNotionConfig(configId: string): Promise<void> {
 
       if (!doc) continue;
 
-      for (const chunk of chunks) {
-        try {
-          const response = await ai.models.embedContent({
-            model: "gemini-embedding-001",
-            contents: chunk,
-            config: { outputDimensionality: 768 },
-          });
-          const embedding = response.embeddings?.[0]?.values;
-          if (!embedding) continue;
-          await admin.from("embeddings").insert({
-            document_id: doc.id,
-            assistant_id: config.bot_id,
-            content_chunk: chunk,
-            embedding,
-          });
-        } catch (err) {
-          console.error("[Notion Sync] Embedding error:", err);
-        }
-      }
+      await Promise.allSettled(
+        chunks.map(async (chunk) => {
+          try {
+            const response = await ai.models.embedContent({
+              model: "gemini-embedding-001",
+              contents: chunk,
+              config: { outputDimensionality: 768 },
+            });
+            const embedding = response.embeddings?.[0]?.values;
+            if (!embedding) return;
+            await admin.from("embeddings").insert({
+              document_id: doc.id,
+              assistant_id: config.bot_id,
+              content_chunk: chunk,
+              embedding,
+            });
+          } catch (err) {
+            console.error("[Notion Sync] Embedding error:", err);
+          }
+        })
+      );
     }
 
     const nextSync = computeNextSync(config.sync_frequency, config.user_id);
