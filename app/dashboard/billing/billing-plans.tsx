@@ -11,7 +11,7 @@ interface Plan {
   name: string;
   description: string;
   price_monthly_cents: number;
-  features: string[] | string;
+  features: string[] | string | Record<string, unknown> | null;
 }
 
 interface Props {
@@ -36,9 +36,25 @@ function PlanForm({
   const isPopular = plan.code === "pro";
 
   let features: string[] = [];
-  if (Array.isArray(plan.features)) features = plan.features;
-  else if (typeof plan.features === "string") {
-    try { features = JSON.parse(plan.features); } catch { /* ignore */ }
+  if (Array.isArray(plan.features)) {
+    // Array of strings OR array of objects — flatten to strings
+    features = plan.features.map((f: unknown) =>
+      typeof f === "string" ? f : typeof f === "object" && f !== null ? Object.values(f as Record<string, unknown>).join(", ") : String(f)
+    );
+  } else if (typeof plan.features === "string") {
+    try {
+      const parsed = JSON.parse(plan.features);
+      if (Array.isArray(parsed)) {
+        features = parsed.map((f: unknown) =>
+          typeof f === "string" ? f : typeof f === "object" && f !== null ? Object.values(f as Record<string, unknown>).join(", ") : String(f)
+        );
+      } else if (typeof parsed === "object" && parsed !== null) {
+        features = Object.values(parsed as Record<string, unknown>).map(String);
+      }
+    } catch { /* ignore */ }
+  } else if (typeof plan.features === "object" && plan.features !== null) {
+    // JSONB object from Supabase e.g. { calendly_booking: "Calendly booking", ... }
+    features = Object.values(plan.features as Record<string, unknown>).map(String);
   }
 
   return (
