@@ -571,8 +571,13 @@ export function ChatWidget({
       {!showLeadForm && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
-            <div className="flex justify-start">
-              <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed" style={{ backgroundColor: `${widgetCfg.primaryColor}22`, color: widgetCfg.textColor }}>
+            <div className="flex justify-start gap-2">
+              <div className="h-7 w-7 rounded-full bg-white/10 flex items-center justify-center overflow-hidden shrink-0 mt-1">
+                {widgetCfg.logoUrl
+                  ? <img src={widgetCfg.logoUrl} alt="logo" className="h-full w-full object-contain" />
+                  : <Bot className="h-4 w-4 text-white/70" />}
+              </div>
+              <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%] leading-relaxed" style={{ backgroundColor: `${widgetCfg.primaryColor}22`, color: widgetCfg.textColor }}>
                 {widgetCfg.welcomeMessage}
               </div>
             </div>
@@ -593,8 +598,13 @@ export function ChatWidget({
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    <div className="flex justify-start">
-                      <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed prose prose-invert prose-sm max-w-none" style={{ backgroundColor: `${widgetCfg.bgColor}cc`, color: widgetCfg.textColor }}>
+                    <div className="flex justify-start gap-2">
+                      <div className="h-7 w-7 rounded-full bg-white/10 flex items-center justify-center overflow-hidden shrink-0 mt-1">
+                        {widgetCfg.logoUrl
+                          ? <img src={widgetCfg.logoUrl} alt="logo" className="h-full w-full object-contain" />
+                          : <Bot className="h-4 w-4 text-white/70" />}
+                      </div>
+                      <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[85%] leading-relaxed prose prose-invert prose-sm max-w-none" style={{ backgroundColor: `${widgetCfg.bgColor}cc`, color: widgetCfg.textColor }}>
                         {msg.content ? (
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         ) : (
@@ -609,7 +619,7 @@ export function ChatWidget({
 
                     {/* Suggestion chips — only under the last assistant message */}
                     {isLast && suggestions.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                      <div className="flex flex-wrap gap-2 mt-2 ml-9">
                         {suggestions.map((q, i) => (
                           <button
                             key={i}
@@ -623,17 +633,17 @@ export function ChatWidget({
                       </div>
                     )}
                     {isLast && products.length > 0 && (
-                      <div className="mt-2">
+                      <div className="mt-2 ml-9">
                         <ProductCards products={products} />
                       </div>
                     )}
                     {isLast && actions.length > 0 && (
-                      <div className="mt-2">
+                      <div className="mt-2 ml-9">
                         <ActionButtons actions={actions} />
                       </div>
                     )}
                     {isLast && booking && (
-                      <div className="mt-3 ml-1">
+                      <div className="mt-3 ml-9">
                         <p className="text-sm font-medium text-white mb-3">
                           I can help you schedule {booking.name}! Pick a time that works:
                         </p>
