@@ -1,13 +1,15 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
 
-export type AlertType = "lead_captured" | "buying_intent" | "unanswered" | "booking_confirmed";
+export type AlertType = "lead_captured" | "buying_intent" | "unanswered" | "booking_confirmed" | "frustration" | "urgency";
 
 const TOGGLE_KEYS: Record<AlertType, string> = {
   lead_captured: "alert_new_lead",
   buying_intent: "alert_buying_intent",
   unanswered: "alert_unanswered",
   booking_confirmed: "alert_booking_confirmed",
+  frustration: "alert_buying_intent", // reuse buying_intent toggle for sentiment alerts
+  urgency: "alert_buying_intent",
 };
 
 /**

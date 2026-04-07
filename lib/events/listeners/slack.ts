@@ -1,6 +1,6 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendSlackAlert } from "@/lib/slack/send-alert";
-import { leadBlock, buyingIntentBlock, unansweredBlock, bookingBlock } from "@/lib/slack/blocks";
+import { leadBlock, buyingIntentBlock, unansweredBlock, bookingBlock, sentimentBlock } from "@/lib/slack/blocks";
 import type { AysEvent, EventName } from "../types";
 
 /**
@@ -76,6 +76,18 @@ export async function handleSlackEvent<T extends EventName>(
         conversationId: p.sessionId,
       });
       await sendSlackAlert(p.userId, p.botId, p.sessionId, "booking_confirmed", blocks);
+      break;
+    }
+
+    case "sentiment.detected": {
+      const blocks = sentimentBlock({
+        botName: p.botName,
+        sentimentType: p.sentimentType,
+        visitorMessage: p.visitorMessage,
+        conversationId: p.sessionId,
+      });
+      const alertType = p.sentimentType === "frustration" ? "frustration" : "urgency";
+      await sendSlackAlert(p.userId, p.botId, p.sessionId, alertType, blocks);
       break;
     }
 

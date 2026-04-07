@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { AYS_MARKER, parseMarkers, type BookingPayload } from "@/lib/chat/parse-markers";
 import ReactMarkdown from "react-markdown";
-import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft } from "lucide-react";
+import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Cropper from "react-easy-crop";
@@ -54,6 +54,9 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     welcomeMessage: assistant.welcome_message || "Hi! How can I help you today?",
     removeBranding: false,
     leadCaptureEnabled: false,
+    exitCaptureEnabled: false,
+    exitCaptureMessage: "Before you go — can I help you with anything else?",
+    incentiveText: "",
     checkoutUrl: "",
     orderTrackingUrl: "",
     supportUrl: "",
@@ -533,6 +536,13 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
             <Paintbrush className="h-5 w-5" />
             Edit Appearance
           </button>
+          <Link
+            href={`/dashboard/assistants/${assistant.id}/overrides`}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-surface hover:text-white"
+          >
+            <ShieldCheck className="h-5 w-5" />
+            Response Rules
+          </Link>
           <button
             onClick={() => setActiveTab("embed")}
             className={cn(
@@ -1070,6 +1080,47 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                               </div>
                             </div>
                           )}
+
+                          {/* Exit Capture */}
+                          <div
+                            onClick={() => setWidgetConfig((c: any) => ({ ...c, exitCaptureEnabled: !c.exitCaptureEnabled }))}
+                            className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.exitCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-lg transition-colors ${widgetConfig.exitCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
+                                <svg className={`h-4 w-4 transition-colors ${widgetConfig.exitCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-white">Exit Capture</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Show a message when a visitor is about to leave.</p>
+                              </div>
+                            </div>
+                            <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.exitCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
+                              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.exitCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
+                            </div>
+                          </div>
+                          {widgetConfig.exitCaptureEnabled && (
+                            <input
+                              type="text"
+                              value={widgetConfig.exitCaptureMessage || ""}
+                              onChange={(e) => setWidgetConfig((c: any) => ({ ...c, exitCaptureMessage: e.target.value }))}
+                              placeholder="Before you go — can I help you with anything else?"
+                              className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                            />
+                          )}
+
+                          {/* Incentive Text */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Incentive Message (optional)</label>
+                            <input
+                              type="text"
+                              value={widgetConfig.incentiveText || ""}
+                              onChange={(e) => setWidgetConfig((c: any) => ({ ...c, incentiveText: e.target.value }))}
+                              placeholder='e.g. "Use code CHAT10 for 10% off your first order!"'
+                              className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                            />
+                            <p className="text-xs text-slate-500">Shown by the AI when a visitor asks about pricing or plans.</p>
+                          </div>
                         </div>
                       )}
 

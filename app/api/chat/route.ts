@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
-import { detectBuyingIntent, detectUnanswered, normalizeQuestion, hashQuestion } from "@/lib/slack/detect";
+import { detectBuyingIntent, detectUnanswered, detectFrustration, detectUrgency, normalizeQuestion, hashQuestion } from "@/lib/slack/detect";
 import { dispatchEvent } from "@/lib/events/dispatch";
 
 // In-memory rate limiter: 10 requests per minute per IP
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { messages, assistantId, sessionId, imageBase64, imageMimeType } = await req.json();
+    const { messages, assistantId, sessionId, imageBase64, imageMimeType, visitorContext } = await req.json();
     const isPreview = assistantId === "preview";
 
     if (!messages || !assistantId || !Array.isArray(messages)) {
@@ -256,6 +256,8 @@ export async function POST(req: Request) {
     let customSystemPrompt = "";
     let assistantData: any = null;
     let agentConfig = { checkoutUrl: "", orderTrackingUrl: "", supportUrl: "", orderWebhookUrl: "" };
+    let matchedOverride: { trigger_phrase: string; override_response: string } | null = null;
+
     if (supabase) {
       const { data } = await supabase
         .from("assistants")
@@ -274,28 +276,29 @@ export async function POST(req: Request) {
         supportUrl: wc.supportUrl || "",
         orderWebhookUrl: wc.orderWebhookUrl || "",
       };
+
+      // Check response overrides (only for non-preview, when there's a user message)
+      if (!isPreview && lastUserMessage) {
+        const { data: overrides } = await supabase
+          .from("response_overrides")
+          .select("trigger_phrase, override_response")
+          .eq("assistant_id", assistantId)
+          .eq("is_active", true);
+
+        if (overrides && overrides.length > 0) {
+          const msgLower = lastUserMessage.toLowerCase();
+          matchedOverride = overrides.find((o: any) => msgLower.includes(o.trigger_phrase)) ?? null;
+        }
+      }
     }
 
-    // ── Calendly booking intent detection ────────────────────────────────────
-    const BOOKING_KEYWORDS = [
-      "book", "schedule", "demo", "call", "meeting", "appointment",
-      "talk to", "speak with", "consult", "set up a time", "hop on a call",
-    ];
-    // Prevent re-triggering when user is confirming/thanking after a booking
-    const ANTI_BOOKING_PATTERNS = [
-      /thank.{0,20}(book|schedul|meeting|appointment)/i,
-      /thanks.{0,20}(book|schedul|meeting|appointment)/i,
-      /(already|just).{0,10}(book|schedul)/i,
-      /(book|schedul).{0,20}(confirm|done|complet)/i,
-    ];
-    const lastUserMsgLower = (lastUserMessage || "").toLowerCase();
-    const hasBookingIntent =
-      BOOKING_KEYWORDS.some((kw) => lastUserMsgLower.includes(kw)) &&
-      !ANTI_BOOKING_PATTERNS.some((pat) => pat.test(lastUserMessage || ""));
+    // ── Calendly booking card payload ─────────────────────────────────────────
+    // Build the payload whenever Calendly is configured + plan allows it.
+    // Whether to actually show the card is gated later on the AI's response text,
+    // so we do NOT restrict this to user booking-keyword detection.
     let bookingPayload: { url: string; name: string } | null = null;
 
     if (
-      hasBookingIntent &&
       assistantData?.widget_config?.calendlyEnabled &&
       assistantData?.widget_config?.calendlyEventTypeUrl &&
       supabase
@@ -318,6 +321,36 @@ export async function POST(req: Request) {
 
     // Role-based system prompt selection
     const role: string = assistantData?.widget_config?.role || "general";
+    const wc = assistantData?.widget_config || {};
+    const calendlyEnabled = wc.calendlyEnabled && wc.calendlyEventTypeUrl;
+    const calendlyEventTypeName = wc.calendlyEventTypeName || "a meeting";
+    const incentiveText: string = wc.incentiveText || "";
+
+    // Detect sentiment from the last user message
+    const isFrustrated = !isPreview && lastUserMessage ? detectFrustration(lastUserMessage) : false;
+    const isUrgent = !isPreview && lastUserMessage ? detectUrgency(lastUserMessage) : false;
+
+    const INTENT_RETENTION_RULES = `
+INTENT RETENTION RULES:
+- Always anchor alternative recommendations to the user's original request (e.g. "similar to what you asked for").
+- When recommending alternatives, explain WHY each is relevant to their original query.
+- End alternative recommendations with a clarifying question: "Is this similar to what you had in mind?"
+- Never recommend items based purely on popularity unless the user explicitly asks for "popular" or "trending" items.
+- When the knowledge base has no clear answer, ask ONE clarifying question before concluding you can't help.`;
+
+    const SENTIMENT_ADJUSTMENT = isFrustrated
+      ? `\nTONE ADJUSTMENT: The user appears frustrated. Acknowledge their frustration first before answering. Be extra patient, empathetic, and apologetic. Lead with: "I'm sorry you're having this issue..."`
+      : isUrgent
+      ? `\nTONE ADJUSTMENT: The user has an urgent need. Lead immediately with the solution — skip pleasantries. Offer to escalate if needed.`
+      : "";
+
+    const CALENDLY_BLOCK = calendlyEnabled
+      ? `\nSCHEDULING: You have a Calendly booking integration active for "${calendlyEventTypeName}". Follow these rules strictly:
+1. NEVER say you cannot book directly or lack booking capability.
+2. When the user first asks to book/schedule: ask exactly ONE brief qualifying question (e.g. "What would you like to discuss?"). Do NOT say "booking calendar" or mention the calendar yet — just ask your question and stop.
+3. Only AFTER the user answers your qualifying question, respond with the solution and include the exact phrase "booking calendar" (e.g. "I'll pull up the booking calendar for you now!") — this triggers the calendar to appear automatically.
+4. Never include "booking calendar" in a response that also contains a question to the user.`
+      : "";
 
     const roleInstructions: Record<string, string> = {
       general: `You are a helpful, knowledgeable AI assistant embedded on this website. Your goal is to answer questions accurately and helpfully, drawing on the knowledge base and your general knowledge.
@@ -326,17 +359,18 @@ BEHAVIOR RULES:
 1. Use the KNOWLEDGE BASE CONTEXT below as your primary source of truth.
 2. When the context does not cover the question, reason from general knowledge to give a helpful answer. Do NOT say "I don't have that information."
 3. Be clear, concise, and friendly. Use short paragraphs.
-4. Always suggest a useful next step at the end of your answer.`,
+4. When the user's request is ambiguous, ask one clarifying question before attempting to answer.
+5. Always suggest a useful next step at the end of your answer.${INTENT_RETENTION_RULES}${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
 
       sales: `You are an expert AI sales advisor embedded on this website. Your goal is to guide visitors toward a confident purchase or action.
 
 BEHAVIOR RULES:
 1. Use the KNOWLEDGE BASE CONTEXT below as your primary source of truth.
-2. When the context does not cover the question, use your general expertise and reasoning. Example: if a user asks which shirt colors suit dark skin and your knowledge base only covers product listings, apply real color-theory and fashion knowledge, then tie it back to products in context.
+2. When the context does not cover the question, use your general expertise and reasoning.
 3. Be warm, confident, and persuasive. Write in short paragraphs. Avoid bullet lists unless listing 3+ items.
 4. Always end with a natural next step — suggest a product, a category, or an action the user can take.
 5. Use details the user has shared earlier (skin tone, budget, use case) to personalize later answers.
-6. Never dead-end. If outside your domain, pivot to what you CAN help with.`,
+6. Never dead-end. If outside your domain, pivot to what you CAN help with.${INTENT_RETENTION_RULES}${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
 
       support: `You are a patient, thorough customer support specialist embedded on this website. Your goal is to resolve issues quickly and leave the user feeling helped.
 
@@ -345,7 +379,7 @@ BEHAVIOR RULES:
 2. When the context is silent, reason from general product/service knowledge to provide a useful answer.
 3. Be empathetic, clear, and step-by-step. Break complex issues into numbered steps.
 4. Always confirm understanding and offer to dig deeper if needed.
-5. If the issue cannot be resolved, clearly direct the user to contact support with specific details.`,
+5. If the issue cannot be resolved, clearly direct the user to contact support with specific details.${INTENT_RETENTION_RULES}${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
 
       docs: `You are a precise technical documentation assistant. Your goal is to help users find the right information quickly and understand it clearly.
 
@@ -354,7 +388,7 @@ BEHAVIOR RULES:
 2. Cite sections or headings from the docs when relevant.
 3. Be precise and technical. Use code blocks for commands or code snippets. Use numbered steps for procedures.
 4. If a topic is not in the docs, say so clearly, then suggest related documented topics.
-5. Accuracy is more important than helpfulness — never guess at technical specifics.`,
+5. Accuracy is more important than helpfulness — never guess at technical specifics.${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
 
       hr: `You are a professional HR assistant embedded on this platform. Your goal is to answer employee and candidate questions clearly and confidentially.
 
@@ -363,7 +397,7 @@ BEHAVIOR RULES:
 2. Be professional, neutral, and supportive in tone.
 3. For sensitive topics (termination, complaints, legal), advise the user to speak with an HR representative directly.
 4. Never speculate about company policy not in the knowledge base.
-5. Keep answers concise but complete.`,
+5. Keep answers concise but complete.${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
 
       ecommerce: `You are an enthusiastic e-commerce shopping assistant. Your goal is to help customers find the perfect product and complete their purchase with confidence.
 
@@ -372,7 +406,7 @@ BEHAVIOR RULES:
 2. When context is missing, use general product knowledge (sizing, materials, compatibility) to assist.
 3. Be enthusiastic, product-focused, and specific. Compare options when the user is deciding.
 4. Always recommend a clear best fit based on what the user has shared.
-5. Suggest complementary products naturally at the end of your answer.`,
+5. Suggest complementary products naturally at the end of your answer.${INTENT_RETENTION_RULES}${SENTIMENT_ADJUSTMENT}${CALENDLY_BLOCK}`,
     };
 
     // For the AskYourSite landing page widget ("preview" mode), inject built-in product knowledge
@@ -480,7 +514,20 @@ Product cards and suggestion chips are handled automatically by the system — d
 3. SUPPORT / HELP / COMPLAINT INTENT (user reports a problem or asks for human help):
    ${agentConfig.supportUrl ? `Append: __AYS_ACTIONS__[{"label":"Contact Support","url":"${agentConfig.supportUrl}","style":"secondary","icon":"support"}]` : "No support URL configured — skip this action."}` : "";
 
-    const systemPrompt = `${customSystemPrompt ? customSystemPrompt + "\n\n" : ""}${assistantId === "preview" ? `You are the official AI assistant for AskYourSite (askyoursite.in). You are embedded directly on the AskYourSite landing page to help potential users understand the product and get started. Be concise, friendly, and action-oriented. Always guide users toward the next step (sign up, create assistant, embed script). If someone asks how to do something specific, give them the exact steps. Never say you don't know about AskYourSite — use the knowledge base below.` : roleInstructions[role] || roleInstructions.general}
+    // Build optional system prompt additions
+    const overrideBlock = matchedOverride
+      ? `\nMANDATORY RESPONSE OVERRIDE: The user asked about "${matchedOverride.trigger_phrase}". You MUST respond with exactly: "${matchedOverride.override_response}". Do not deviate, add, or omit anything from this response.\n`
+      : "";
+
+    const incentiveBlock = incentiveText && detectBuyingIntent(lastUserMessage || "")
+      ? `\nINCENTIVE: When discussing pricing or plans, naturally include this offer in your response: "${incentiveText}"\n`
+      : "";
+
+    const visitorContextBlock = visitorContext
+      ? `\nRETURNING VISITOR CONTEXT: This visitor previously asked about: ${visitorContext}. Use this to personalize your greeting and responses when relevant.\n`
+      : "";
+
+    const systemPrompt = `${customSystemPrompt ? customSystemPrompt + "\n\n" : ""}${overrideBlock}${incentiveBlock}${visitorContextBlock}${assistantId === "preview" ? `You are the official AI assistant for AskYourSite (askyoursite.in). You are embedded directly on the AskYourSite landing page to help potential users understand the product and get started. Be concise, friendly, and action-oriented. Always guide users toward the next step (sign up, create assistant, embed script). If someone asks how to do something specific, give them the exact steps. Never say you don't know about AskYourSite — use the knowledge base below.` : roleInstructions[role] || roleInstructions.general}
 
 KNOWLEDGE BASE CONTEXT:
 ${contextDocs ? contextDocs : "No specific context found — answer from general expertise for this domain."}
@@ -587,8 +634,29 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
             console.log(`[Chat] Injected ${products.length} product cards server-side`);
           }
 
-          // Append Calendly booking card if intent detected and plan allows it
-          if (bookingPayload) {
+          // Append Calendly booking card only when the AI signals it's ready to show the calendar.
+          // The AI is instructed to say "booking calendar" / "I'll pull up" only after qualifying questions.
+          // This prevents the card from appearing when the AI is still asking a qualifying question.
+          const AI_CALENDAR_SIGNALS = [
+            "booking calendar",
+            "pull up the calendar",
+            "show you the calendar",
+            "book your time",
+            "pick a time",
+            "choose a time",
+            "select a time",
+            "scheduling link",
+            "calendar below",
+            "calendar will appear",
+            "calendar should appear",
+            "appear below",
+            "booking link",
+            "schedule a time",
+          ];
+          const aiWantsToShowCalendar = AI_CALENDAR_SIGNALS.some((sig) =>
+            fullAssistantResponse.toLowerCase().includes(sig)
+          );
+          if (bookingPayload && aiWantsToShowCalendar) {
             suffix += `__AYS_BOOKING__${JSON.stringify(bookingPayload)}`;
           }
 
@@ -642,6 +710,18 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
                 botName,
                 question: lastUserMessage,
                 questionHash: hash,
+                sessionId: chatSessionId,
+                timestamp: new Date().toISOString(),
+              });
+            }
+
+            if (isFrustrated || isUrgent) {
+              dispatchEvent("sentiment.detected", {
+                userId: ownerId,
+                botId: assistantId,
+                botName,
+                sentimentType: isFrustrated ? "frustration" : "urgency",
+                visitorMessage: lastUserMessage,
                 sessionId: chatSessionId,
                 timestamp: new Date().toISOString(),
               });

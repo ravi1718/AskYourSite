@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { Bot, Paperclip, Send, ChevronDown, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
+import { Bot, Paperclip, Send, ChevronDown, X, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
 
@@ -73,11 +73,18 @@ export function ChatWidget({
   assistantId,
   showBranding = true,
   leadCaptureEnabled = false,
+  exitCaptureEnabled = false,
+  exitCaptureMessage = "Before you go — can I help you with anything else?",
 }: {
   assistantId?: string;
   showBranding?: boolean;
   leadCaptureEnabled?: boolean;
+  exitCaptureEnabled?: boolean;
+  exitCaptureMessage?: string;
 }) {
+  const sessionKey = assistantId ? `ays_session_${assistantId}` : null;
+  const visitorKey = assistantId ? `ays_visitor_${assistantId}` : null;
+
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -87,10 +94,21 @@ export function ChatWidget({
   const [actions, setActions] = useState<Action[]>([]);
   const [booking, setBooking] = useState<BookingPayload | null>(null);
   const [showCalendly, setShowCalendly] = useState(false);
-  const [sessionId] = useState(() => crypto.randomUUID());
   const [imageAttachment, setImageAttachment] = useState<ImageAttachment | null>(null);
+  const [showExitCapture, setShowExitCapture] = useState(false);
+  const exitShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Persistent session ID (stored in localStorage so returning visitors resume history)
+  const [sessionId] = useState(() => {
+    if (!sessionKey || typeof window === "undefined") return crypto.randomUUID();
+    const saved = localStorage.getItem(sessionKey);
+    if (saved) return saved;
+    const id = crypto.randomUUID();
+    localStorage.setItem(sessionKey, id);
+    return id;
+  });
 
   // Lead capture state
   const [leadCaptured, setLeadCaptured] = useState(false);
@@ -99,6 +117,77 @@ export function ChatWidget({
   const [leadError, setLeadError] = useState("");
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
+  // Load conversation history on first open
+  useEffect(() => {
+    if (!isOpen || !assistantId || !sessionId || messages.length > 0) return;
+    fetch(`/api/chat/history?sessionId=${sessionId}&assistantId=${assistantId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.messages?.length > 0) {
+          setMessages(data.messages.map((m: any) => ({ role: m.role, content: m.content })));
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, assistantId, sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save visitor profile on widget close (for cross-session personalization)
+  const saveVisitorProfile = useCallback(() => {
+    if (!visitorKey || messages.length === 0) return;
+    const userMsgs = messages.filter((m) => m.role === "user").map((m) => m.content);
+    if (userMsgs.length === 0) return;
+    // Extract simple topic keywords: first 6 words of each user message, deduplicated
+    const topics = Array.from(
+      new Set(userMsgs.flatMap((m) => m.toLowerCase().split(/\s+/).slice(0, 6)))
+    ).slice(0, 30).join(", ");
+    localStorage.setItem(visitorKey, JSON.stringify({ topics, lastVisit: new Date().toISOString() }));
+  }, [messages, visitorKey]);
+
+  // Get visitor context for personalized AI greeting
+  const getVisitorContext = (): string | null => {
+    if (!visitorKey || typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(visitorKey);
+      if (!raw) return null;
+      const { topics } = JSON.parse(raw);
+      return topics || null;
+    } catch {
+      return null;
+    }
+  };
+
+  // New conversation: clear session key so a fresh ID is generated next open
+  const startNewConversation = () => {
+    if (sessionKey) localStorage.removeItem(sessionKey);
+    setMessages([]);
+    setSuggestions([]);
+    setProducts([]);
+    setActions([]);
+    setBooking(null);
+  };
+
+  // Exit intent detection
+  useEffect(() => {
+    if (!exitCaptureEnabled || !isOpen) return;
+    const handleMouseLeave = (e: MouseEvent) => {
+      if (e.clientY <= 0 && !exitShownRef.current && messages.length > 0 && !leadCaptured) {
+        setShowExitCapture(true);
+        exitShownRef.current = true;
+      }
+    };
+    const handleVisibility = () => {
+      if (document.hidden && !exitShownRef.current && messages.length > 0 && !leadCaptured) {
+        setShowExitCapture(true);
+        exitShownRef.current = true;
+      }
+    };
+    document.addEventListener("mouseleave", handleMouseLeave);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("mouseleave", handleMouseLeave);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [exitCaptureEnabled, isOpen, messages.length, leadCaptured]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, suggestions]);
@@ -106,6 +195,55 @@ export function ChatWidget({
   useEffect(() => {
     setShowCalendly(false);
   }, [booking]);
+
+  // Shared booking-confirmed handler — called by postMessage listener OR manual button
+  const handleBookingConfirmed = useCallback(() => {
+    setBooking(null);
+    setShowCalendly(false);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content:
+          "Your meeting has been booked! 🎉 You'll receive a confirmation email shortly. Is there anything else I can help you with?",
+      },
+    ]);
+    if (assistantId && sessionId) {
+      fetch("/api/chat/booking-confirmed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistantId, sessionId }),
+      }).catch(() => {});
+    }
+  }, [assistantId, sessionId]);
+
+  // Stable ref — always points to the latest handler without re-registering the listener
+  const handleBookingConfirmedRef = useRef(handleBookingConfirmed);
+  useEffect(() => {
+    handleBookingConfirmedRef.current = handleBookingConfirmed;
+  }, [handleBookingConfirmed]);
+
+  // Calendly postMessage listener — registered ONCE at mount (empty deps) so React
+  // Strict Mode double-invocation never creates a gap where the listener is absent.
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      try {
+        const data =
+          e.data && typeof e.data === "object" && e.data !== null
+            ? e.data
+            : typeof e.data === "string"
+            ? JSON.parse(e.data)
+            : null;
+        if (data?.event === "calendly.event_scheduled") {
+          handleBookingConfirmedRef.current();
+        }
+      } catch {
+        // ignore malformed messages from other iframes
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -129,6 +267,7 @@ export function ChatWidget({
     setProducts([]);
     setActions([]);
     setBooking(null);
+    setShowExitCapture(false);
     setInput("");
     const currentImage = imageAttachment;
     setImageAttachment(null);
@@ -147,6 +286,9 @@ export function ChatWidget({
     const assistantPlaceholder: Message = { role: "assistant", content: "" };
     setMessages([...updatedMessages, assistantPlaceholder]);
 
+    // Pass visitor context (topics from previous sessions) for personalization
+    const visitorContext = getVisitorContext();
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -155,6 +297,7 @@ export function ChatWidget({
           messages: updatedMessages,
           assistantId: assistantId ?? "preview",
           sessionId,
+          ...(visitorContext && { visitorContext }),
           ...(currentImage && {
             imageBase64: currentImage.base64,
             imageMimeType: currentImage.mimeType,
@@ -272,8 +415,17 @@ export function ChatWidget({
           </div>
         </div>
         <div className="flex items-center gap-1 text-slate-400">
+          {messages.length > 0 && (
+            <button
+              onClick={startNewConversation}
+              title="New conversation"
+              className="p-2 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={() => { saveVisitorProfile(); setIsOpen(false); }}
             className="p-2 hover:text-white hover:bg-white/5 rounded-md transition-colors"
           >
             <ChevronDown className="h-5 w-5" />
@@ -314,6 +466,22 @@ export function ChatWidget({
             {isSubmittingLead ? "Starting..." : "Start Chat →"}
           </button>
         </form>
+      )}
+
+      {/* Exit Capture Banner */}
+      {!showLeadForm && showExitCapture && (
+        <div className="mx-3 mt-2 flex items-start gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 animate-fade-up">
+          <span className="text-base">👋</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-white leading-snug">{exitCaptureMessage}</p>
+          </div>
+          <button
+            onClick={() => setShowExitCapture(false)}
+            className="text-slate-400 hover:text-white transition-colors shrink-0"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Chat Area */}
@@ -397,8 +565,8 @@ export function ChatWidget({
                             <iframe
                               src={`${booking.url}?embed_type=Inline&embed_domain=1`}
                               width="100%"
-                              height="630"
-                              frameBorder={0}
+                              height="560"
+                              style={{ border: "none" }}
                               title="Schedule a meeting"
                             />
                           </div>
@@ -411,6 +579,19 @@ export function ChatWidget({
             );
           })}
           <div ref={messagesEndRef} />
+        </div>
+      )}
+
+      {/* Calendly sticky bar — outside scroll area, always visible when iframe is open */}
+      {showCalendly && booking && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2 bg-[#006BFF]/10 border-t border-[#006BFF]/30">
+          <span className="text-xs text-slate-400">Booking calendar open</span>
+          <button
+            onClick={handleBookingConfirmed}
+            className="text-xs font-semibold text-[#006BFF] hover:underline flex items-center gap-1"
+          >
+            ✓ Already booked? Continue
+          </button>
         </div>
       )}
 

@@ -78,6 +78,9 @@ export async function GET(
       order_tracking_url: widgetConfig.orderTrackingUrl ?? null,
       support_url: widgetConfig.supportUrl ?? null,
       order_webhook_url: widgetConfig.orderWebhookUrl ?? null,
+      // Exit capture
+      exit_capture_enabled: !!(widgetConfig.exitCaptureEnabled === true),
+      exit_capture_message: widgetConfig.exitCaptureMessage ?? "Before you go — can I help you with anything else?",
     }, {
       status: 200,
       headers: {

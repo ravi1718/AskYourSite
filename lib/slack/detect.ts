@@ -1,5 +1,32 @@
 import crypto from "crypto";
 
+// ── Frustration detection ────────────────────────────────────────────────────
+export const FRUSTRATION_PATTERNS = [
+  "not working", "doesn't work", "does not work", "broken", "terrible",
+  "useless", "frustrated", "frustrating", "annoying", "waste of time",
+  "still not", "tried multiple", "keeps failing", "same issue", "same problem",
+  "this is wrong", "makes no sense", "awful", "horrible", "worst",
+  "completely wrong", "stop working", "never works",
+];
+
+export function detectFrustration(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return FRUSTRATION_PATTERNS.some((p) => lower.includes(p));
+}
+
+// ── Urgency detection ────────────────────────────────────────────────────────
+export const URGENCY_PATTERNS = [
+  "asap", "urgent", "urgently", "immediately", "right now", "right away",
+  "critical", "emergency", "need this now", "time sensitive", "time-sensitive",
+  "deadline", "launch tomorrow", "launching today", "going live", "must fix",
+  "need help now", "very important",
+];
+
+export function detectUrgency(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return URGENCY_PATTERNS.some((p) => lower.includes(p));
+}
+
 // Unanswered detection patterns — kept in sync with app/api/analytics/route.ts
 export const UNANSWERED_PATTERNS = [
   "i don't have information about",

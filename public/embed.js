@@ -572,8 +572,33 @@
   styleEl.innerHTML = STYLES;
   document.head.appendChild(styleEl);
 
-  // Persistent session ID for this widget load (used for Slack alert rate limiting)
-  const chatSessionId = crypto.randomUUID();
+  // Persistent session ID — stored in localStorage so returning visitors resume history
+  const _sessionKey = 'ays_session_' + agentId;
+  const chatSessionId = localStorage.getItem(_sessionKey) || (() => {
+    const id = crypto.randomUUID();
+    localStorage.setItem(_sessionKey, id);
+    return id;
+  })();
+
+  // Visitor profile — saves topics from past sessions for personalized greetings
+  const _visitorKey = 'ays_visitor_' + agentId;
+  const getVisitorContext = () => {
+    try {
+      const stored = localStorage.getItem(_visitorKey);
+      if (!stored) return null;
+      const profile = JSON.parse(stored);
+      return profile.topics && profile.topics.length > 0 ? profile.topics.join(', ') : null;
+    } catch { return null; }
+  };
+  const saveVisitorProfile = () => {
+    try {
+      const userMessages = conversation.filter(m => m.role === 'user').map(m => m.content);
+      if (!userMessages.length) return;
+      const words = userMessages.join(' ').toLowerCase().split(/\W+/).filter(w => w.length > 4);
+      const unique = [...new Set(words)].slice(0, 5);
+      localStorage.setItem(_visitorKey, JSON.stringify({ topics: unique, lastVisit: new Date().toISOString() }));
+    } catch {}
+  };
 
   // Build UI
   const container = document.createElement('div');
@@ -808,11 +833,31 @@
     });
   }
 
+  // History load — runs once on first open to restore past messages
+  let historyLoaded = false;
+  const loadHistory = async () => {
+    if (historyLoaded) return;
+    historyLoaded = true;
+    try {
+      const res = await fetch(API_BASE + '/api/chat/history?sessionId=' + chatSessionId + '&assistantId=' + agentId);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.messages && data.messages.length > 0) {
+        messagesEl.innerHTML = '';
+        data.messages.forEach(m => addMessage(m.role === 'user' ? 'user' : 'model', m.content));
+        conversation = data.messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }));
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+    } catch {}
+  };
+
   const toggleChat = () => {
     isOpen = !isOpen;
     if (isOpen) {
       windowEl.classList.add('ays-open');
+      loadHistory();
     } else {
+      saveVisitorProfile();
       windowEl.classList.remove('ays-open');
     }
   };
@@ -990,6 +1035,27 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   };
 
+  // Booking confirmed: dismiss calendar, add thank-you, fire Slack alert
+  const handleBookingConfirmed = () => {
+    const wrapper = document.querySelector('.ays-booking-wrapper');
+    if (wrapper) wrapper.remove();
+    addMessage('model', "Your meeting has been booked! 🎉 You'll receive a confirmation email shortly. Is there anything else I can help you with?");
+    fetch(API_BASE + '/api/chat/booking-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assistantId: agentId, sessionId: chatSessionId }),
+    }).catch(() => {});
+  };
+
+  // Calendly postMessage listener — fires automatically when visitor completes booking
+  window.addEventListener('message', (e) => {
+    try {
+      const data = e.data && typeof e.data === 'object' ? e.data
+        : typeof e.data === 'string' ? JSON.parse(e.data) : null;
+      if (data && data.event === 'calendly.event_scheduled') handleBookingConfirmed();
+    } catch {}
+  });
+
   const renderBooking = (booking) => {
     if (!booking || !booking.url) return;
     const wrapper = document.createElement('div');
@@ -1010,11 +1076,36 @@
       frame.style.borderRadius = '12px';
       frame.style.border = '1px solid rgba(0,107,255,0.3)';
       wrapper.appendChild(frame);
+      // Fallback "Done" button below iframe for when postMessage doesn't fire
+      const doneBar = document.createElement('div');
+      doneBar.style.cssText = 'text-align:center;padding:8px 0 4px;font-size:12px;color:#94a3b8;';
+      doneBar.innerHTML = 'Already booked? <button style="background:none;border:none;color:#006BFF;font-size:12px;font-weight:600;cursor:pointer;padding:0;" id="ays-booking-done">✓ Done, continue</button>';
+      wrapper.appendChild(doneBar);
+      document.getElementById('ays-booking-done').addEventListener('click', handleBookingConfirmed);
       messagesEl.scrollTop = messagesEl.scrollHeight;
     });
     messagesEl.appendChild(wrapper);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   };
+
+  // Exit capture — shown once when user moves cursor out of page (desktop) or hides tab (mobile)
+  if (widgetConfig.exit_capture_enabled) {
+    let exitShown = false;
+    const showExitCapture = () => {
+      if (exitShown || conversation.length <= 1 || !isOpen) return;
+      exitShown = true;
+      const row = document.createElement('div');
+      row.className = 'ays-message-row model';
+      row.innerHTML = `<div class="ays-avatar">${botIconSvg}</div>
+        <div class="ays-message model" style="background:#1e3a5f;border-color:#3b82f6;">
+          ${widgetConfig.exit_capture_message || 'Before you go — can I help you with anything else?'}
+        </div>`;
+      messagesEl.appendChild(row);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    };
+    document.addEventListener('mouseleave', (e) => { if (e.clientY <= 0) showExitCapture(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) showExitCapture(); });
+  }
 
   formEl.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1070,6 +1161,7 @@
             imageBase64: currentImageBase64,
             imageMimeType: currentImageMimeType,
           }),
+          ...(getVisitorContext() && { visitorContext: getVisitorContext() }),
         })
       });
 

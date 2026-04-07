@@ -51,6 +51,15 @@ export type AysEvent = {
     pageUrl?: string;
     timestamp: string;
   };
+  "sentiment.detected": {
+    userId: string;
+    botId: string;
+    botName: string;
+    sentimentType: "frustration" | "urgency";
+    visitorMessage: string;
+    sessionId: string;
+    timestamp: string;
+  };
 };
 
 export type EventName = keyof AysEvent;

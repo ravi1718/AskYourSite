@@ -207,6 +207,55 @@ export function bookingBlock(params: {
   ];
 }
 
+// ─── Sentiment Alert ─────────────────────────────────────────────────────────
+
+export function sentimentBlock(params: {
+  botName: string;
+  sentimentType: "frustration" | "urgency";
+  visitorMessage: string;
+  conversationId: string;
+}): object[] {
+  const { botName, sentimentType, visitorMessage, conversationId } = params;
+  const isFrustration = sentimentType === "frustration";
+  const emoji = isFrustration ? "🔴" : "⚡";
+  const title = isFrustration ? "Frustrated User" : "Urgent Request";
+  const tip = isFrustration
+    ? "This user seems frustrated. Consider reaching out personally to resolve their issue."
+    : "This user has a time-sensitive need. A quick personal response could make the difference.";
+
+  return [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `*${emoji} ${title} — ${botName}*`,
+      },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Their message:*\n_${visitorMessage}_` },
+        { type: "mrkdwn", text: `*Time:*\n${formatTimestamp()}` },
+      ],
+    },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "View Conversation" },
+          url: `${APP_URL}/dashboard/conversations/${conversationId}`,
+          style: "danger",
+        },
+      ],
+    },
+    {
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `💡 ${tip}` }],
+    },
+  ];
+}
+
 // ─── Test Notification ────────────────────────────────────────────────────────
 
 export function testBlock(botName: string, enabledAlerts: string[]): object[] {
