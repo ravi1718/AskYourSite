@@ -81,6 +81,10 @@ export async function GET(
       // Exit capture
       exit_capture_enabled: !!(widgetConfig.exitCaptureEnabled === true),
       exit_capture_message: widgetConfig.exitCaptureMessage ?? "Before you go — can I help you with anything else?",
+      // Notification bubbles
+      notification_enabled: !!(widgetConfig.notificationEnabled === true),
+      notification_messages: [widgetConfig.notificationMessage1, widgetConfig.notificationMessage2].filter(Boolean),
+      notification_delay: widgetConfig.notificationDelay ?? 4,
     }, {
       status: 200,
       headers: {

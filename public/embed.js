@@ -50,32 +50,90 @@
       width: 60px;
       height: 60px;
       border-radius: 30px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      border: none;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    
+
     #ays-chat-button:hover {
       transform: scale(1.05);
-      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+      box-shadow: 0 6px 28px rgba(0, 0, 0, 0.7);
     }
-    
+
     #ays-chat-button svg {
       fill: white;
       width: 28px;
       height: 28px;
+    }
+
+    #ays-notif-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .ays-notif-bubble {
+      position: relative;
+      max-width: 240px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 10px 32px 10px 14px;
+      font-size: 13px;
+      color: #f8fafc;
+      line-height: 1.4;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      animation: ays-slide-up 0.3s ease;
+    }
+    .ays-notif-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      right: 22px;
+      width: 10px;
+      height: 10px;
+      background: #1e293b;
+      border-right: 1px solid #334155;
+      border-bottom: 1px solid #334155;
+      transform: rotate(45deg);
+    }
+    .ays-notif-bubble:hover { border-color: #475569; }
+    .ays-notif-close {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: #334155;
+      border: none;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      color: #94a3b8;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .ays-notif-close:hover { background: #475569; color: #fff; }
+    @keyframes ays-slide-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     
     #ays-chat-window {
       position: absolute;
       bottom: 80px;
       right: 0;
-      width: 380px;
+      width: 440px;
       height: 600px;
       max-height: calc(100vh - 120px);
       max-width: calc(100vw - 48px);
@@ -692,7 +750,12 @@
     </svg>
   `;
 
+  // Notification bubble container (above the chat button)
+  const notifContainer = document.createElement('div');
+  notifContainer.id = 'ays-notif-container';
+
   container.appendChild(windowEl);
+  container.appendChild(notifContainer);
   container.appendChild(buttonEl);
   document.body.appendChild(container);
 
@@ -855,6 +918,7 @@
     isOpen = !isOpen;
     if (isOpen) {
       windowEl.classList.add('ays-open');
+      notifContainer.innerHTML = ''; // clear notification bubbles when chat opens
       loadHistory();
     } else {
       saveVisitorProfile();
@@ -1105,6 +1169,29 @@
     };
     document.addEventListener('mouseleave', (e) => { if (e.clientY <= 0) showExitCapture(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) showExitCapture(); });
+  }
+
+  // Notification bubbles — show after configured delay when widget is closed
+  if (widgetConfig.notification_enabled && widgetConfig.notification_messages && widgetConfig.notification_messages.length > 0) {
+    const notifDelay = (widgetConfig.notification_delay ?? 4) * 1000;
+    setTimeout(() => {
+      if (isOpen) return; // don't show if widget already open
+      const msgs = widgetConfig.notification_messages.slice(0, 2);
+      msgs.forEach((msg) => {
+        const bubble = document.createElement('div');
+        bubble.className = 'ays-notif-bubble';
+        bubble.innerHTML = `<span>${msg}</span><button class="ays-notif-close" title="Dismiss">×</button>`;
+        bubble.addEventListener('click', () => {
+          notifContainer.innerHTML = '';
+          toggleChat();
+        });
+        bubble.querySelector('.ays-notif-close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          bubble.remove();
+        });
+        notifContainer.appendChild(bubble);
+      });
+    }, notifDelay);
   }
 
   formEl.addEventListener('submit', async (e) => {

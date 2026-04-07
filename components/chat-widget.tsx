@@ -110,6 +110,56 @@ export function ChatWidget({
     return id;
   });
 
+  // Notification bubble state
+  const [notifMessages, setNotifMessages] = useState<string[]>([]);
+  const [notifDelay, setNotifDelay] = useState(4);
+  const [notifVisible, setNotifVisible] = useState(false);
+  const [notifDismissed, setNotifDismissed] = useState<Set<number>>(new Set());
+
+  // Visual config fetched from the widget API (colors, font, name, etc.)
+  const [widgetCfg, setWidgetCfg] = useState({
+    primaryColor: "#3b82f6",
+    bgColor: "#0f172a",
+    textColor: "#f8fafc",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    logoUrl: "",
+    name: "AskYourSite Agent",
+    welcomeMessage: "Hi! How can I help you today?",
+    placeholder: "Message...",
+  });
+
+  // Fetch full widget config (visual + notifications) from API
+  useEffect(() => {
+    if (!assistantId) return;
+    fetch(`/api/widget/${assistantId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((cfg) => {
+        if (!cfg) return;
+        setWidgetCfg({
+          primaryColor: cfg.primaryColor || "#3b82f6",
+          bgColor: cfg.bgColor || "#0f172a",
+          textColor: cfg.textColor || "#f8fafc",
+          fontFamily: cfg.fontFamily || "system-ui, -apple-system, sans-serif",
+          logoUrl: cfg.logoUrl || "",
+          name: cfg.name || "AskYourSite Agent",
+          welcomeMessage: cfg.welcomeMessage || "Hi! How can I help you today?",
+          placeholder: cfg.placeholder || "Message...",
+        });
+        if (cfg.notification_enabled && cfg.notification_messages?.length > 0) {
+          setNotifMessages(cfg.notification_messages);
+          setNotifDelay(cfg.notification_delay ?? 4);
+        }
+      })
+      .catch(() => {});
+  }, [assistantId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Show notification bubbles after delay when widget is closed
+  useEffect(() => {
+    if (isOpen || notifMessages.length === 0) return;
+    const timer = setTimeout(() => setNotifVisible(true), notifDelay * 1000);
+    return () => clearTimeout(timer);
+  }, [isOpen, notifMessages.length, notifDelay]);
+
   // Lead capture state
   const [leadCaptured, setLeadCaptured] = useState(false);
   const [leadName, setLeadName] = useState("");
@@ -389,44 +439,77 @@ export function ChatWidget({
   const showLeadForm = leadCaptureEnabled && !!assistantId && !leadCaptured;
 
   if (!isOpen) {
+    const visibleBubbles = notifVisible
+      ? notifMessages.filter((_, i) => !notifDismissed.has(i))
+      : [];
     return (
-      <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-gradient-to-br from-primary to-secondary shadow-[0_0_30px_rgba(59,130,246,0.5)] flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-50 group"
-      >
-        <Bot className="h-6 w-6 group-hover:animate-pulse" />
-      </button>
+      <div className="fixed bottom-6 right-6 flex flex-col items-end gap-2 z-50">
+        {visibleBubbles.map((msg, i) => (
+          <div
+            key={i}
+            onClick={() => setIsOpen(true)}
+            className="relative max-w-[240px] bg-[#1e293b] border border-slate-700 rounded-2xl px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] text-sm text-white cursor-pointer hover:border-slate-500 transition-colors animate-fade-up"
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setNotifDismissed((prev) => new Set(prev).add(i));
+              }}
+              className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-slate-600 text-white flex items-center justify-center text-[10px] hover:bg-slate-500 transition-colors"
+            >
+              ×
+            </button>
+            {msg}
+            <div className="absolute bottom-[-5px] right-6 h-2.5 w-2.5 bg-[#1e293b] border-r border-b border-slate-700 rotate-45" />
+          </div>
+        ))}
+        <button
+          onClick={() => { setIsOpen(true); setNotifVisible(false); }}
+          style={{ backgroundColor: widgetCfg.primaryColor }}
+          className="h-14 w-14 rounded-full shadow-[0_4px_24px_rgba(0,0,0,0.6)] flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all group border-0"
+        >
+          <Bot className="h-6 w-6 group-hover:animate-pulse" />
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-[380px] h-[600px] max-h-[85vh] flex flex-col rounded-2xl border border-border bg-surface/90 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_0_1px_rgba(59,130,246,0.2)] z-50 overflow-hidden animate-fade-up">
+    <div
+      className="fixed bottom-6 right-6 w-[440px] h-[600px] max-h-[85vh] flex flex-col rounded-2xl border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-fade-up"
+      style={{ backgroundColor: widgetCfg.bgColor, fontFamily: widgetCfg.fontFamily }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/50">
+      <div
+        className="flex items-center justify-between px-4 py-3 border-b border-white/10"
+        style={{ backgroundColor: widgetCfg.primaryColor }}
+      >
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center shadow-glow">
-            <Bot className="h-5 w-5 text-white" />
+          <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center overflow-hidden shrink-0">
+            {widgetCfg.logoUrl
+              ? <img src={widgetCfg.logoUrl} alt="logo" className="h-full w-full object-contain" />
+              : <Bot className="h-5 w-5 text-white" />}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">AskYourSite Agent</h3>
-            <p className="text-[10px] text-primary flex items-center gap-1 font-medium tracking-wide">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" /> ONLINE
+            <h3 className="text-sm font-semibold text-white">{widgetCfg.name}</h3>
+            <p className="text-[10px] text-white/70 flex items-center gap-1 font-medium tracking-wide">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> ONLINE
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 text-slate-400">
+        <div className="flex items-center gap-1 text-white/70">
           {messages.length > 0 && (
             <button
               onClick={startNewConversation}
               title="New conversation"
-              className="p-2 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+              className="p-2 hover:text-white hover:bg-white/10 rounded-md transition-colors"
             >
               <RotateCcw className="h-4 w-4" />
             </button>
           )}
           <button
             onClick={() => { saveVisitorProfile(); setIsOpen(false); }}
-            className="p-2 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            className="p-2 hover:text-white hover:bg-white/10 rounded-md transition-colors"
           >
             <ChevronDown className="h-5 w-5" />
           </button>
@@ -489,8 +572,8 @@ export function ChatWidget({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 && (
             <div className="flex justify-start">
-              <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card">
-                Hi! How can I help you today?
+              <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed" style={{ backgroundColor: `${widgetCfg.primaryColor}22`, color: widgetCfg.textColor }}>
+                {widgetCfg.welcomeMessage}
               </div>
             </div>
           )}
@@ -501,7 +584,7 @@ export function ChatWidget({
               <div key={idx}>
                 {msg.role === "user" ? (
                   <div className="flex justify-end">
-                    <div className="bg-primary/20 border border-primary/30 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+                    <div className="rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed" style={{ backgroundColor: `${widgetCfg.primaryColor}33`, borderColor: `${widgetCfg.primaryColor}55`, border: "1px solid", color: widgetCfg.textColor }}>
                       {(msg as any).imagePreview && (
                         <img src={(msg as any).imagePreview} alt="Uploaded" className="max-h-32 rounded-lg mb-2 object-contain" />
                       )}
@@ -511,7 +594,7 @@ export function ChatWidget({
                 ) : (
                   <div className="flex flex-col">
                     <div className="flex justify-start">
-                      <div className="bg-background/80 border border-border text-slate-300 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed shadow-card prose prose-invert prose-sm max-w-none">
+                      <div className="border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3 text-sm max-w-[90%] leading-relaxed prose prose-invert prose-sm max-w-none" style={{ backgroundColor: `${widgetCfg.bgColor}cc`, color: widgetCfg.textColor }}>
                         {msg.content ? (
                           <ReactMarkdown>{msg.content}</ReactMarkdown>
                         ) : (
@@ -531,7 +614,8 @@ export function ChatWidget({
                           <button
                             key={i}
                             onClick={() => handleSend(q)}
-                            className="text-xs px-3 py-1.5 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                            className="text-xs px-3 py-1.5 rounded-full border transition-colors cursor-pointer hover:opacity-80"
+                            style={{ borderColor: `${widgetCfg.primaryColor}66`, color: widgetCfg.primaryColor }}
                           >
                             {q}
                           </button>
@@ -597,7 +681,7 @@ export function ChatWidget({
 
       {/* Input Area */}
       {!showLeadForm && (
-        <div className="p-3 bg-background border-t border-border">
+        <div className="p-3 border-t border-white/10" style={{ backgroundColor: widgetCfg.bgColor }}>
           {imageAttachment && (
             <div className="relative inline-block mb-2 ml-1">
               <img src={imageAttachment.previewUrl} alt="Upload preview" className="h-16 w-16 object-cover rounded-lg border border-border" />
@@ -610,10 +694,10 @@ export function ChatWidget({
             </div>
           )}
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-          <div className="relative flex items-end gap-2 rounded-xl border border-border bg-surface p-1 shadow-inner focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/50 transition-all">
+          <div className="relative flex items-end gap-2 rounded-xl border border-white/10 p-1 transition-all" style={{ backgroundColor: `${widgetCfg.bgColor}cc` }}>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-slate-400 hover:text-primary transition-colors shrink-0"
+              className="p-2 text-slate-400 hover:text-white transition-colors shrink-0"
               title="Upload image to search"
             >
               <Paperclip className="h-5 w-5" />
@@ -622,15 +706,17 @@ export function ChatWidget({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={imageAttachment ? "Add a message or send image..." : "Message..."}
-              className="w-full max-h-32 min-h-[40px] bg-transparent text-sm text-white placeholder-slate-500 border-0 focus:ring-0 resize-none py-2.5"
+              placeholder={imageAttachment ? "Add a message or send image..." : (widgetCfg.placeholder || "Message...")}
+              className="w-full max-h-32 min-h-[40px] bg-transparent text-sm placeholder-slate-500 border-0 focus:ring-0 resize-none py-2.5"
+              style={{ color: widgetCfg.textColor }}
               rows={1}
               disabled={isStreaming}
             />
             <button
               onClick={() => handleSend()}
               disabled={(!input.trim() && !imageAttachment) || isStreaming}
-              className="mb-1 mr-1 p-2 rounded-lg bg-primary text-white hover:bg-blue-400 transition-colors shrink-0 shadow-glow disabled:opacity-40 disabled:cursor-not-allowed"
+              className="mb-1 mr-1 p-2 rounded-lg text-white transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{ backgroundColor: widgetCfg.primaryColor }}
             >
               <Send className="h-4 w-4" />
             </button>

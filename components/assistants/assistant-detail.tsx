@@ -61,6 +61,10 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     orderTrackingUrl: "",
     supportUrl: "",
     orderWebhookUrl: "",
+    notificationEnabled: false,
+    notificationMessage1: "",
+    notificationMessage2: "",
+    notificationDelay: 4,
   };
   const [widgetConfig, setWidgetConfig] = useState<Record<string, any>>({
     ...defaultConfig,
@@ -886,337 +890,102 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
 
           {activeTab === "appearance" && (
             <div className="animate-fade-up">
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-white">Edit Appearance</h2>
-                <p className="text-sm text-slate-400">Customize your chat widget's look, behavior, and branding.</p>
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Edit Appearance</h2>
+                  <p className="text-sm text-slate-400">Customize your chat widget's look, behavior, and branding.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {saveResult && (
+                    <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
+                      {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
+                    </span>
+                  )}
+                  <Button onClick={() => handleSaveAppearance(1)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow">
+                    {savingSection !== null ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {savingSection !== null ? "Saving..." : "Save All Changes"}
+                  </Button>
+                </div>
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-                {/* Left: three named sections */}
-                <div className="space-y-10">
+              <div className="grid gap-6 lg:grid-cols-[260px_1fr_280px]">
+                {/* ── Left column: Look & Feel ── */}
+                <div className="space-y-5">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Look &amp; Feel</p>
 
-                  {/* ── Section 1: Look & Feel ── */}
-                  <div>
-                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
-                      <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
-                      </div>
-                      <div>
-                        <h3 className="text-base font-semibold text-white">Look & Feel</h3>
-                        <p className="text-xs text-slate-500">Colors, fonts, tone, and chat messages</p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-5">
-                      {/* Colors */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Colors</h4>
-                        <div className="grid gap-4 sm:grid-cols-3">
-                          <div>
-                            <label className="text-xs text-slate-400 block mb-2">Primary Color</label>
-                            <div className="flex items-center gap-2">
-                              <input type="color" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                              <input type="text" value={widgetConfig.primaryColor} onChange={(e) => updateConfig("primaryColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-xs text-slate-400 block mb-2">Background</label>
-                            <div className="flex items-center gap-2">
-                              <input type="color" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                              <input type="text" value={widgetConfig.bgColor} onChange={(e) => updateConfig("bgColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="text-xs text-slate-400 block mb-2">Text Color</label>
-                            <div className="flex items-center gap-2">
-                              <input type="color" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-transparent" />
-                              <input type="text" value={widgetConfig.textColor} onChange={(e) => updateConfig("textColor", e.target.value)} className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
-                            </div>
-                          </div>
+                  {/* Colors */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Colors</p>
+                    <div className="space-y-2">
+                      {[
+                        { label: "Primary", key: "primaryColor" },
+                        { label: "Background", key: "bgColor" },
+                        { label: "Text", key: "textColor" },
+                      ].map(({ label, key }) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <input type="color" value={widgetConfig[key]} onChange={(e) => updateConfig(key, e.target.value)} className="h-8 w-8 rounded-lg border border-border cursor-pointer bg-transparent shrink-0" />
+                          <span className="text-xs text-slate-400 w-20 shrink-0">{label}</span>
+                          <input type="text" value={widgetConfig[key]} onChange={(e) => updateConfig(key, e.target.value)} className="flex-1 min-w-0 bg-background border border-border rounded-lg px-2 py-1.5 text-white text-xs outline-none focus:border-primary/50" />
                         </div>
-                      </div>
-
-                      {/* Role */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Assistant Role</h4>
-                        <p className="text-xs text-slate-500">Defines the AI's persona and how it handles questions outside the knowledge base.</p>
-                        <select value={widgetConfig.role || "general"} onChange={(e) => updateConfig("role", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
-                          {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Font & Tone */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Font & Tone</h4>
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="text-xs text-slate-400 block mb-2">Font Family</label>
-                            <select value={widgetConfig.fontFamily} onChange={(e) => updateConfig("fontFamily", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
-                              {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-xs text-slate-400 block mb-2">Tone</label>
-                            <select value={widgetConfig.tone} onChange={(e) => updateConfig("tone", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 cursor-pointer">
-                              {TONE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Messages */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Messages</h4>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Welcome Message</label>
-                          <input type="text" value={widgetConfig.welcomeMessage} onChange={(e) => updateConfig("welcomeMessage", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Hi! How can I help you today?" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Input Placeholder</label>
-                          <input type="text" value={widgetConfig.placeholder} onChange={(e) => updateConfig("placeholder", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="Ask me anything..." />
-                        </div>
-                      </div>
-
-                      {/* Section 1 Save */}
-                      <div className="flex items-center gap-4">
-                        <Button onClick={() => handleSaveAppearance(1)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[160px]">
-                          {savingSection === 1 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          {savingSection === 1 ? "Saving..." : "Save Look & Feel"}
-                        </Button>
-                        {saveResultSection === 1 && saveResult && (
-                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
-                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
-                          </span>
-                        )}
-                      </div>
+                      ))}
                     </div>
                   </div>
 
-                  {/* ── Section 2: Content & Branding ── */}
-                  <div>
-                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
-                      <div className="h-7 w-7 rounded-lg bg-primary/20 flex items-center justify-center">
-                        <svg className="h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                      </div>
-                      <div>
-                        <h3 className="text-base font-semibold text-white">Content & Branding</h3>
-                        <p className="text-xs text-slate-500">System prompt, logo, and feature toggles</p>
-                      </div>
-                    </div>
+                  <div className="border-t border-slate-800" />
 
-                    <div className="space-y-5">
-                      {/* System Prompt */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">System Prompt</h4>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Custom instructions prepended to the AI's default prompt</label>
-                          <textarea value={widgetConfig.systemPrompt} onChange={(e) => updateConfig("systemPrompt", e.target.value)} rows={5} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50 resize-none" placeholder="e.g., Always greet the user by name. Focus on upselling premium products..." />
-                        </div>
-                      </div>
-
-                      {/* Logo Upload */}
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Widget Logo</h4>
-                        <div className="flex items-center gap-4">
-                          {widgetConfig.logoUrl ? (
-                            <img src={widgetConfig.logoUrl} alt="Widget logo" className="h-14 w-14 rounded-xl object-cover border border-border" />
-                          ) : (
-                            <div className="h-14 w-14 rounded-xl bg-background border border-dashed border-border flex items-center justify-center">
-                              <Bot className="h-6 w-6 text-slate-600" />
-                            </div>
-                          )}
-                          <div>
-                            <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
-                            <Button onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo} className="bg-primary hover:bg-blue-500 text-white gap-2 text-xs px-4 py-2 h-auto">
-                              {isUploadingLogo ? <RefreshCcw className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                              {isUploadingLogo ? "Uploading..." : "Upload Logo"}
-                            </Button>
-                            <p className="text-xs text-slate-500 mt-1">PNG, JPG, or SVG. Recommended 64×64px.</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Feature Toggles */}
-                      {(featureFlags.remove_branding || featureFlags.lead_capture) && (
-                        <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
-                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Features</h4>
-
-                          {featureFlags.remove_branding && (
-                            <div
-                              onClick={() => setWidgetConfig((c: any) => ({ ...c, removeBranding: !c.removeBranding }))}
-                              className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.removeBranding ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg transition-colors ${widgetConfig.removeBranding ? "bg-primary/20" : "bg-slate-700/50"}`}>
-                                  <svg className={`h-4 w-4 transition-colors ${widgetConfig.removeBranding ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-white">Remove "Powered by AskYourSite"</p>
-                                  <p className="text-xs text-slate-400 mt-0.5">Hide the branding footer from your widget</p>
-                                </div>
-                              </div>
-                              <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.removeBranding ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
-                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.removeBranding ? "translate-x-6" : "translate-x-0.5"}`} />
-                              </div>
-                            </div>
-                          )}
-
-                          {featureFlags.lead_capture && (
-                            <div
-                              onClick={() => setWidgetConfig((c: any) => ({ ...c, leadCaptureEnabled: !c.leadCaptureEnabled }))}
-                              className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.leadCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg transition-colors ${widgetConfig.leadCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
-                                  <svg className={`h-4 w-4 transition-colors ${widgetConfig.leadCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-white">Lead Capture Form</p>
-                                  <p className="text-xs text-slate-400 mt-0.5">Ask visitors for name & email before chatting.</p>
-                                </div>
-                              </div>
-                              <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.leadCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
-                                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.leadCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Exit Capture */}
-                          <div
-                            onClick={() => setWidgetConfig((c: any) => ({ ...c, exitCaptureEnabled: !c.exitCaptureEnabled }))}
-                            className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all select-none ${widgetConfig.exitCaptureEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-500"}`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className={`p-2 rounded-lg transition-colors ${widgetConfig.exitCaptureEnabled ? "bg-primary/20" : "bg-slate-700/50"}`}>
-                                <svg className={`h-4 w-4 transition-colors ${widgetConfig.exitCaptureEnabled ? "text-primary" : "text-slate-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium text-white">Exit Capture</p>
-                                <p className="text-xs text-slate-400 mt-0.5">Show a message when a visitor is about to leave.</p>
-                              </div>
-                            </div>
-                            <div className={`relative w-12 h-6 rounded-full transition-all duration-200 shadow-inner flex-shrink-0 ${widgetConfig.exitCaptureEnabled ? "bg-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]" : "bg-slate-700"}`}>
-                              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${widgetConfig.exitCaptureEnabled ? "translate-x-6" : "translate-x-0.5"}`} />
-                            </div>
-                          </div>
-                          {widgetConfig.exitCaptureEnabled && (
-                            <input
-                              type="text"
-                              value={widgetConfig.exitCaptureMessage || ""}
-                              onChange={(e) => setWidgetConfig((c: any) => ({ ...c, exitCaptureMessage: e.target.value }))}
-                              placeholder="Before you go — can I help you with anything else?"
-                              className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
-                            />
-                          )}
-
-                          {/* Incentive Text */}
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Incentive Message (optional)</label>
-                            <input
-                              type="text"
-                              value={widgetConfig.incentiveText || ""}
-                              onChange={(e) => setWidgetConfig((c: any) => ({ ...c, incentiveText: e.target.value }))}
-                              placeholder='e.g. "Use code CHAT10 for 10% off your first order!"'
-                              className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
-                            />
-                            <p className="text-xs text-slate-500">Shown by the AI when a visitor asks about pricing or plans.</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Section 2 Save */}
-                      <div className="flex items-center gap-4">
-                        <Button onClick={() => handleSaveAppearance(2)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[180px]">
-                          {savingSection === 2 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          {savingSection === 2 ? "Saving..." : "Save Content & Branding"}
-                        </Button>
-                        {saveResultSection === 2 && saveResult && (
-                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
-                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  {/* Font & Tone */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Font &amp; Tone</p>
+                    <select value={widgetConfig.fontFamily} onChange={(e) => updateConfig("fontFamily", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50 cursor-pointer">
+                      {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                    </select>
+                    <select value={widgetConfig.tone} onChange={(e) => updateConfig("tone", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50 cursor-pointer">
+                      {TONE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
                   </div>
 
-                  {/* ── Section 3: Agent Features [BETA] ── */}
-                  <div>
-                    <div className="flex items-center gap-3 mb-5 pb-3 border-b border-border">
-                      <div className="h-7 w-7 rounded-lg bg-yellow-400/10 flex items-center justify-center">
-                        <svg className="h-4 w-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-semibold text-white">Agent Features</h3>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400/20 text-yellow-400 uppercase tracking-wider">Beta</span>
-                        </div>
-                        <p className="text-xs text-slate-500">AI-powered action buttons and live order data integration</p>
-                      </div>
-                    </div>
+                  <div className="border-t border-slate-800" />
 
-                    <div className="space-y-5">
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-5">
-                        <div>
-                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Action URLs</h4>
-                          <p className="text-xs text-slate-500 mt-1">When configured, the AI automatically shows action buttons when it detects buyer intent.</p>
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Checkout URL</label>
-                          <input type="url" value={widgetConfig.checkoutUrl || ""} onChange={(e) => updateConfig("checkoutUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/checkout" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Order Tracking URL</label>
-                          <input type="url" value={widgetConfig.orderTrackingUrl || ""} onChange={(e) => updateConfig("orderTrackingUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/track-order" />
-                        </div>
-                        <div>
-                          <label className="text-xs text-slate-400 block mb-2">Support URL</label>
-                          <input type="url" value={widgetConfig.supportUrl || ""} onChange={(e) => updateConfig("supportUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourstore.com/support" />
-                        </div>
-                      </div>
-
-                      <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-4">
-                        <div>
-                          <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Order Webhook <span className="text-slate-600 normal-case font-normal">(advanced)</span></h4>
-                          <p className="text-xs text-slate-500 mt-1">The AI will POST order queries to this endpoint and show live order data in its response.</p>
-                        </div>
-                        <input type="url" value={widgetConfig.orderWebhookUrl || ""} onChange={(e) => updateConfig("orderWebhookUrl", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-primary/50" placeholder="https://yourapi.com/orders/lookup" />
-                      </div>
-
-                      {/* Section 3 Save */}
-                      <div className="flex items-center gap-4">
-                        <Button onClick={() => handleSaveAppearance(3)} disabled={savingSection !== null} className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow min-w-[180px]">
-                          {savingSection === 3 ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          {savingSection === 3 ? "Saving..." : "Save Agent Config"}
-                        </Button>
-                        {saveResultSection === 3 && saveResult && (
-                          <span className={cn("text-sm font-medium", saveResult.includes("Error") ? "text-rose-400" : "text-emerald-400")}>
-                            {saveResult.includes("Error") ? saveResult : <span className="flex items-center gap-1"><Check className="h-4 w-4" />{saveResult}</span>}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  {/* Role */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Assistant Role</p>
+                    <select value={widgetConfig.role || "general"} onChange={(e) => updateConfig("role", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50 cursor-pointer">
+                      {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
                   </div>
 
+                  <div className="border-t border-slate-800" />
+
+                  {/* Messages */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Messages</p>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block mb-1">Welcome Message</label>
+                      <input type="text" value={widgetConfig.welcomeMessage} onChange={(e) => updateConfig("welcomeMessage", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" placeholder="Hi! How can I help you today?" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block mb-1">Input Placeholder</label>
+                      <input type="text" value={widgetConfig.placeholder} onChange={(e) => updateConfig("placeholder", e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" placeholder="Ask me anything..." />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Live Preview — sticky on right, visible for all 3 sections */}
+                {/* ── Center column: Live Preview ── */}
                 <div className="lg:sticky lg:top-8 self-start">
-                  <h3 className="text-sm font-semibold text-white mb-3">Live Preview</h3>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold mb-3">Live Preview</p>
                   <div className="rounded-2xl border border-border overflow-hidden shadow-card" style={{ backgroundColor: widgetConfig.bgColor, fontFamily: widgetConfig.fontFamily }}>
-                    {/* Header */}
                     <div className="px-4 py-3 flex items-center gap-4 border-b border-white/10" style={{ backgroundColor: widgetConfig.primaryColor }}>
                       {widgetConfig.logoUrl ? (
-                        <img src={widgetConfig.logoUrl} alt="Logo" className="w-[64px] h-[64px] rounded-full object-contain bg-white/10 p-1 shrink-0" />
+                        <img src={widgetConfig.logoUrl} alt="Logo" className="w-[48px] h-[48px] rounded-full object-contain bg-white/10 p-1 shrink-0" />
                       ) : (
-                        <div className="w-[64px] h-[64px] rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                          <Bot className="h-6 w-6 text-white" />
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                          <Bot className="h-5 w-5 text-white" />
                         </div>
                       )}
-                      <span className="text-base font-semibold text-white">{assistant.name}</span>
+                      <span className="text-sm font-semibold text-white">{assistant.name}</span>
                     </div>
-                    {/* Lead Form Preview OR Chat Preview */}
                     {widgetConfig.leadCaptureEnabled ? (
-                      <div className="p-5 min-h-[400px] flex flex-col justify-center gap-4">
+                      <div className="p-5 min-h-[340px] flex flex-col justify-center gap-4">
                         <div>
                           <p className="text-sm font-semibold mb-0.5" style={{ color: widgetConfig.textColor }}>Before we start...</p>
                           <p className="text-xs opacity-60" style={{ color: widgetConfig.textColor }}>Enter your details to begin chatting.</p>
@@ -1227,7 +996,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                       </div>
                     ) : (
                       <>
-                        <div className="p-4 min-h-[400px] flex flex-col justify-end">
+                        <div className="p-4 min-h-[340px] flex flex-col justify-end">
                           <div className="flex gap-2 items-end self-start max-w-[85%]">
                             <div className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center overflow-hidden mb-1" style={{ backgroundColor: `${widgetConfig.primaryColor}30` }}>
                               {widgetConfig.logoUrl ? (
@@ -1236,7 +1005,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                                 <Bot className="h-3.5 w-3.5" style={{ color: widgetConfig.primaryColor }} />
                               )}
                             </div>
-                            <div className="rounded-xl px-3 py-2 text-sm border border-white/10" style={{ backgroundColor: `${widgetConfig.primaryColor}15`, color: widgetConfig.textColor, borderBottomLeftRadius: 4 }}>
+                            <div className="rounded-xl px-3 py-2 text-xs border border-white/10" style={{ backgroundColor: `${widgetConfig.primaryColor}15`, color: widgetConfig.textColor, borderBottomLeftRadius: 4 }}>
                               {widgetConfig.welcomeMessage || "Hi! How can I help?"}
                             </div>
                           </div>
@@ -1251,7 +1020,6 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                         </div>
                       </>
                     )}
-                    {/* Branding footer */}
                     {!widgetConfig.removeBranding && (
                       <div className="px-4 pb-3 text-center">
                         <span className="text-[10px] opacity-40 uppercase tracking-widest font-semibold flex items-center justify-center gap-1" style={{ color: widgetConfig.textColor }}>
@@ -1261,9 +1029,121 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                     )}
                   </div>
                 </div>
+
+                {/* ── Right column: Branding & Behaviour ── */}
+                <div className="space-y-5">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">Branding &amp; Behaviour</p>
+
+                  {/* Logo */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Widget Logo</p>
+                    <div className="flex items-center gap-3">
+                      {widgetConfig.logoUrl ? (
+                        <img src={widgetConfig.logoUrl} alt="Widget logo" className="h-12 w-12 rounded-xl object-cover border border-border" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-xl bg-background border border-dashed border-border flex items-center justify-center">
+                          <Bot className="h-5 w-5 text-slate-600" />
+                        </div>
+                      )}
+                      <div>
+                        <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} className="hidden" />
+                        <button onClick={() => logoInputRef.current?.click()} disabled={isUploadingLogo} className="text-xs px-3 py-1.5 rounded-lg border border-border text-slate-300 hover:text-white hover:border-slate-500 transition-colors flex items-center gap-1.5 disabled:opacity-50">
+                          {isUploadingLogo ? <RefreshCcw className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                          {isUploadingLogo ? "Uploading..." : "Upload Logo"}
+                        </button>
+                        <p className="text-[10px] text-slate-600 mt-1">PNG, JPG, SVG · 64×64px</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-800" />
+
+                  {/* System Prompt */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">System Prompt</p>
+                    <textarea value={widgetConfig.systemPrompt} onChange={(e) => updateConfig("systemPrompt", e.target.value)} rows={4} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50 resize-none" placeholder="e.g., Always greet the user by name..." />
+                  </div>
+
+                  <div className="border-t border-slate-800" />
+
+                  {/* Feature Toggles */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Features</p>
+                    {[
+                      { key: "removeBranding", label: "Remove Branding", desc: "Hide 'Powered by AskYourSite'", gate: featureFlags.remove_branding },
+                      { key: "leadCaptureEnabled", label: "Lead Capture Form", desc: "Ask for email before chatting", gate: featureFlags.lead_capture },
+                      { key: "exitCaptureEnabled", label: "Exit Capture", desc: "Show message when visitor leaves", gate: true },
+                    ].filter(({ gate }) => gate !== false).map(({ key, label, desc }) => (
+                      <div key={key} onClick={() => setWidgetConfig((c: any) => ({ ...c, [key]: !c[key] }))} className={cn("flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all select-none", widgetConfig[key] ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-600")}>
+                        <div>
+                          <p className="text-xs font-medium text-white">{label}</p>
+                          <p className="text-[10px] text-slate-500">{desc}</p>
+                        </div>
+                        <div className={cn("relative w-10 h-5 rounded-full transition-all duration-200 shrink-0", widgetConfig[key] ? "bg-primary" : "bg-slate-700")}>
+                          <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-200", widgetConfig[key] ? "translate-x-5" : "translate-x-0.5")} />
+                        </div>
+                      </div>
+                    ))}
+                    {widgetConfig.exitCaptureEnabled && (
+                      <input type="text" value={widgetConfig.exitCaptureMessage || ""} onChange={(e) => setWidgetConfig((c: any) => ({ ...c, exitCaptureMessage: e.target.value }))} placeholder="Before you go — can I help you with anything else?" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                    )}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] text-slate-500">Incentive Message <span className="text-slate-600">(optional)</span></p>
+                      <input type="text" value={widgetConfig.incentiveText || ""} onChange={(e) => setWidgetConfig((c: any) => ({ ...c, incentiveText: e.target.value }))} placeholder='e.g. "Use code CHAT10 for 10% off!"' className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-800" />
+
+                  {/* Notification Bubbles */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Chat Bubble Notifications</p>
+                    <div onClick={() => setWidgetConfig((c: any) => ({ ...c, notificationEnabled: !c.notificationEnabled }))} className={cn("flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all select-none", widgetConfig.notificationEnabled ? "border-primary/50 bg-primary/5" : "border-border hover:border-slate-600")}>
+                      <div>
+                        <p className="text-xs font-medium text-white">Enable Notification Bubbles</p>
+                        <p className="text-[10px] text-slate-500">Show speech bubbles above the chat button</p>
+                      </div>
+                      <div className={cn("relative w-10 h-5 rounded-full transition-all duration-200 shrink-0", widgetConfig.notificationEnabled ? "bg-primary" : "bg-slate-700")}>
+                        <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-md transition-transform duration-200", widgetConfig.notificationEnabled ? "translate-x-5" : "translate-x-0.5")} />
+                      </div>
+                    </div>
+                    {widgetConfig.notificationEnabled && (
+                      <div className="space-y-2 pl-1">
+                        <input type="text" value={widgetConfig.notificationMessage1 || ""} onChange={(e) => setWidgetConfig((c: any) => ({ ...c, notificationMessage1: e.target.value }))} placeholder="Message 1 (required)" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                        <input type="text" value={widgetConfig.notificationMessage2 || ""} onChange={(e) => setWidgetConfig((c: any) => ({ ...c, notificationMessage2: e.target.value }))} placeholder="Message 2 (optional)" className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" />
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-slate-500 shrink-0">Show after</p>
+                          <select value={widgetConfig.notificationDelay ?? 4} onChange={(e) => setWidgetConfig((c: any) => ({ ...c, notificationDelay: Number(e.target.value) }))} className="bg-background border border-border rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-primary/50 cursor-pointer">
+                            {[2, 4, 8, 15].map((s) => <option key={s} value={s}>{s}s</option>)}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-slate-800" />
+
+                  {/* Agent URLs */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Agent URLs <span className="normal-case text-slate-700 text-[9px]">(advanced)</span></p>
+                    {[
+                      { key: "checkoutUrl", label: "Checkout URL", placeholder: "https://yourstore.com/checkout" },
+                      { key: "orderTrackingUrl", label: "Order Tracking URL", placeholder: "https://yourstore.com/track-order" },
+                      { key: "supportUrl", label: "Support URL", placeholder: "https://yourstore.com/support" },
+                      { key: "orderWebhookUrl", label: "Order Webhook", placeholder: "https://yourapi.com/orders/lookup" },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key}>
+                        <label className="text-[10px] text-slate-500 block mb-1">{label}</label>
+                        <input type="url" value={widgetConfig[key] || ""} onChange={(e) => updateConfig(key, e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" placeholder={placeholder} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
+
 
           {activeTab === "embed" && (
             <div className="animate-fade-up space-y-6">
