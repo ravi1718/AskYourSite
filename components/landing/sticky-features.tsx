@@ -121,7 +121,7 @@ function CustomizePreview() {
           {colors.map((c, i) => (
             <motion.button
               key={c}
-              animate={{ scale: active === i ? 1.2 : 1, ring: active === i ? 2 : 0 }}
+              animate={{ scale: active === i ? 1.2 : 1 }}
               className={`h-7 w-7 rounded-full border-2 transition-all ${active === i ? "border-white" : "border-transparent"}`}
               style={{ backgroundColor: c }}
             />
