@@ -1,843 +1,212 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import NextImage from "next/image";
-import { AnimatedBeam } from "@/components/ui/animated-beam";
-import { IntegrationsComingSoon } from "@/components/sections/integrations-coming-soon";
+import Image from "next/image";
+import { HeroSection } from "@/components/landing/hero-section";
+import { LiveDemoChat } from "@/components/landing/live-demo-chat";
+import { BentoFeatures } from "@/components/landing/bento-features";
+import { StickyFeatures } from "@/components/landing/sticky-features";
+import { IntegrationsShowcase } from "@/components/landing/integrations-showcase";
+import { SocialProof } from "@/components/landing/social-proof";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { FinalCTA } from "@/components/landing/final-cta";
 import {
-  ArrowRight,
-  Bot,
-  Zap,
-  Globe,
-  MessageSquare,
   CheckCircle2,
-  Code2,
-  Image,
-  Palette,
-  BarChart3,
-  Sparkles,
-  Twitter,
-  Github,
   Menu,
   X,
-  ShoppingBag,
-  Layers,
-  Briefcase,
-  ChevronDown,
-  User,
-  Building2,
-  Store,
-  Users,
-  Stethoscope,
-  BookOpen,
-  Linkedin,
+  Sparkles,
 } from "lucide-react";
 
-/* ─── Small reusable helpers ─────────────────────────── */
-
-function GlassNode({
-  children,
-  className = "",
-  nodeRef,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  nodeRef?: React.RefObject<HTMLDivElement | null>;
-}) {
+function TwitterIcon({ className }: { className?: string }) {
   return (
-    <div
-      ref={nodeRef}
-      className={`relative flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/5 backdrop-blur-md shadow-lg ${className}`}
-    >
-      {children}
-    </div>
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
   );
 }
 
-function SectionBadge({ children }: { children: React.ReactNode }) {
+function LinkedinIcon({ className }: { className?: string }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
-      <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-      {children}
-    </span>
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+    </svg>
   );
 }
 
-/* ─── Integration Hub Diagram ────────────────────────── */
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
 
-function IntegrationHub() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const centerRef = useRef<HTMLDivElement>(null);
-  const node1Ref = useRef<HTMLDivElement>(null);
-  const node2Ref = useRef<HTMLDivElement>(null);
-  const node3Ref = useRef<HTMLDivElement>(null);
-  const node4Ref = useRef<HTMLDivElement>(null);
-  const node5Ref = useRef<HTMLDivElement>(null);
-  const node6Ref = useRef<HTMLDivElement>(null);
+/* ─── Navbar ─────────────────────────────────────────────── */
+function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const nodes = [
-    { ref: node1Ref, label: "Drive", color: "#4285f4", icon: "🗂️", delay: 0 },
-    { ref: node2Ref, label: "Docs", color: "#34a853", icon: "📄", delay: 0.5 },
-    { ref: node3Ref, label: "WhatsApp", color: "#25d366", icon: "💬", delay: 1 },
-    { ref: node4Ref, label: "Notion", color: "#ffffff", icon: "📝", delay: 1.5 },
-    { ref: node5Ref, label: "Zapier", color: "#ff4a00", icon: "⚡", delay: 2 },
-    { ref: node6Ref, label: "Messenger", color: "#0084ff", icon: "💭", delay: 2.5 },
+  const links = [
+    { label: "How it works", href: "#how-it-works" },
+    { label: "Features", href: "#features" },
+    { label: "Integrations", href: "#integrations" },
+    { label: "Pricing", href: "#pricing" },
+    { label: "Docs", href: "/docs" },
   ];
 
   return (
-    <div
-      ref={containerRef}
-      className="relative mx-auto w-full max-w-lg h-80 flex items-center justify-center"
-    >
-      {/* Animated beams */}
-      {nodes.map((n, i) => (
-        <AnimatedBeam
-          key={i}
-          containerRef={containerRef}
-          fromRef={n.ref}
-          toRef={centerRef}
-          duration={3 + i * 0.4}
-          delay={n.delay}
-          curvature={i % 2 === 0 ? 30 : -30}
-        />
-      ))}
+    <header className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-[#0D0D1A]/80 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2.5">
+          <Image src="/logo.png" alt="AskYourSite" width={32} height={32} className="rounded-lg" />
+          <span className="font-display text-base font-bold text-white tracking-tight">AskYourSite</span>
+        </Link>
 
-      {/* Left column nodes */}
-      <div className="absolute left-0 flex flex-col gap-6 items-start">
-        {nodes.slice(0, 3).map((n, i) => (
-          <div key={i} className="flex flex-col items-center gap-1">
-            <GlassNode nodeRef={n.ref} className="hover:border-white/30 transition-colors">
-              <span className="text-xl">{n.icon}</span>
-            </GlassNode>
-            <span className="text-[10px] text-slate-500">{n.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Center hub */}
-      <div className="relative flex items-center justify-center z-10">
-        {/* Pulse rings */}
-        <div className="absolute h-20 w-20 rounded-full bg-primary/20 animate-pulse-ring" />
-        <div className="absolute h-20 w-20 rounded-full bg-primary/10 animate-pulse-ring" style={{ animationDelay: "1s" }} />
-        {/* Center node */}
-        <div
-          ref={centerRef}
-          className="relative flex h-20 w-20 items-center justify-center rounded-full border border-primary/50 bg-gradient-to-br from-primary/30 to-secondary/30 backdrop-blur-xl shadow-glow animate-glow-pulse"
-        >
-          <Bot className="h-9 w-9 text-white" />
-        </div>
-      </div>
-
-      {/* Right column nodes */}
-      <div className="absolute right-0 flex flex-col gap-6 items-end">
-        {nodes.slice(3).map((n, i) => (
-          <div key={i} className="flex flex-col items-center gap-1">
-            <GlassNode nodeRef={n.ref} className="hover:border-white/30 transition-colors">
-              <span className="text-xl">{n.icon}</span>
-            </GlassNode>
-            <span className="text-[10px] text-slate-500">{n.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ─── Bento Feature Cards ─────────────────────────────── */
-
-function FeatureCard({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`group relative overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03] backdrop-blur-sm transition-all duration-300 hover:border-primary/30 hover:bg-white/[0.05] hover:shadow-[0_8px_40px_rgba(59,130,246,0.08)] ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
-
-/* ─── Testimonial Card ────────────────────────────────── */
-
-function FAQItem({ question, answer }: { question: string; answer: string }) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-white/[0.03]"
-      >
-        <span className="text-sm font-semibold text-white pr-4">{question}</span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-        />
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-200 ${open ? "max-h-40" : "max-h-0"}`}
-      >
-        <p className="px-5 pb-4 text-sm text-slate-400 leading-relaxed">{answer}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Main Page ───────────────────────────────────────── */
-
-export default function Home() {
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-
-  return (
-    <main className="relative overflow-x-hidden bg-background text-text min-h-screen">
-
-      {/* ── Background glows ── */}
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-primary/8 blur-[140px]" />
-        <div className="absolute top-[30%] right-[-15%] w-[500px] h-[500px] rounded-full bg-secondary/8 blur-[140px]" />
-        <div className="absolute bottom-[-10%] left-[30%] w-[400px] h-[400px] rounded-full bg-pink-500/5 blur-[120px]" />
-        {/* Dot grid */}
-        <div className="absolute inset-0 dot-grid opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_80%)]" />
-      </div>
-
-      {/* ═══════════════════════════════════════
-          NAVBAR
-      ═══════════════════════════════════════ */}
-      <header className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-background/75">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <NextImage src="/logo.png" alt="AskYourSite" width={44} height={44} className="rounded-xl" />
-            <span className="font-display text-lg font-bold tracking-tight text-white">AskYourSite</span>
-          </Link>
-
-          {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
-            <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
-            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
-          </nav>
-
-          {/* CTAs */}
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">
-              Log in
-            </Link>
+        {/* Desktop nav */}
+        <nav className="hidden lg:flex items-center gap-7">
+          {links.map((l) => (
             <Link
-              href="/login"
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-semibold text-white shadow-glow hover:shadow-glow-lg hover:scale-105 transition-all active:scale-95"
+              key={l.label}
+              href={l.href}
+              className="text-sm text-slate-400 hover:text-white transition-colors"
             >
-              Get Started <ArrowRight className="h-3.5 w-3.5" />
+              {l.label}
             </Link>
-          </div>
+          ))}
+        </nav>
 
-          {/* Mobile menu btn */}
-          <button
-            className="md:hidden text-slate-400 hover:text-white transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-        </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/5 bg-background/95 px-6 py-4 flex flex-col gap-4">
-            <a href="#how-it-works" className="text-sm text-slate-400 hover:text-white">How it works</a>
-            <a href="#features" className="text-sm text-slate-400 hover:text-white">Features</a>
-            <a href="#pricing" className="text-sm text-slate-400 hover:text-white">Pricing</a>
-            <Link href="/docs" className="text-sm text-slate-400 hover:text-white">Docs</Link>
-            <Link href="/login" className="text-sm text-slate-400 hover:text-white">Log in</Link>
-            <Link href="/login" className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-primary to-secondary px-5 py-2 text-sm font-semibold text-white">
-              Get Started <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        )}
-      </header>
-
-      {/* ═══════════════════════════════════════
-          HERO
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto flex max-w-7xl flex-col items-center px-6 pt-24 pb-16 text-center lg:px-10">
-
-        {/* Badge */}
-        <div className="animate-fade-up mb-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
-            <Zap className="h-3 w-3 fill-current" />
-            AskYourSite is now live
-          </span>
-        </div>
-
-        {/* Headline */}
-        <h1 className="animate-fade-up delay-75 max-w-4xl font-display text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl leading-[1.08]">
-          Turn Your Website Into an{" "}
-          <span className="gradient-text-animated">AI Agent</span>
-        </h1>
-
-        {/* Subtext */}
-        <p className="animate-fade-up delay-150 mt-6 max-w-2xl text-lg leading-relaxed text-slate-400">
-          Train AI on your website and let visitors ask questions, discover products, and
-          interact with your business instantly — no code required.
-        </p>
-
-        {/* CTAs */}
-        <div className="animate-fade-up delay-200 mt-10 flex flex-col sm:flex-row items-center gap-4">
+        {/* Desktop CTAs */}
+        <div className="hidden lg:flex items-center gap-3">
+          <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2">
+            Log in
+          </Link>
           <Link
             href="/login"
-            className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-bold text-ink shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.35)] hover:scale-105 transition-all active:scale-95"
+            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:from-violet-500 hover:to-blue-500 transition-all"
           >
-            Start for free
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            <Sparkles className="h-3.5 w-3.5" />
+            Get Started
           </Link>
-          <button className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm hover:border-white/20 hover:bg-white/8 transition-all">
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-            Watch Demo
-          </button>
         </div>
 
-        {/* Trust line */}
-        <p className="animate-fade-up delay-300 mt-6 text-xs text-slate-600">
-          No credit card required · Setup in 2 minutes
-        </p>
+        {/* Mobile toggle */}
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors"
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
 
-        {/* Product Hunt badge */}
-        <div className="animate-fade-up delay-300 mt-5">
-          <a
-            href="https://www.producthunt.com/products/askyoursite?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-askyoursite"
-            target="_blank"
-            rel="noopener noreferrer"
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="lg:hidden border-t border-white/6 bg-[#0D0D1A]/95 backdrop-blur-xl px-4 py-6 space-y-4">
+          {links.map((l) => (
+            <Link
+              key={l.label}
+              href={l.href}
+              onClick={() => setMobileOpen(false)}
+              className="block text-sm text-slate-400 hover:text-white py-2 transition-colors"
+            >
+              {l.label}
+            </Link>
+          ))}
+          <Link
+            href="/login"
+            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 py-3 text-sm font-semibold text-white"
           >
-            <img
-              alt="AskYourSite - AI agents for websites that answer questions & recommend | Product Hunt"
-              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1114009&theme=dark&t=1775116559896"
-              width={250}
-              height={54}
-              style={{ display: "inline-block" }}
-            />
-          </a>
+            <Sparkles className="h-4 w-4" />
+            Get Started Free
+          </Link>
         </div>
+      )}
+    </header>
+  );
+}
 
-        {/* Integration Hub */}
-        <div className="animate-fade-up delay-500 mt-20 w-full">
-          <p className="text-xs font-medium uppercase tracking-widest text-slate-600 mb-8">
-            Connects with your existing tools
-          </p>
-          <div className="relative rounded-3xl border border-white/8 bg-white/[0.02] p-8 backdrop-blur-sm shadow-halo mx-auto max-w-2xl">
-            <IntegrationHub />
-          </div>
-        </div>
-      </section>
+/* ─── Pricing Section ────────────────────────────────────── */
+function PricingSection() {
+  const plans = [
+    {
+      name: "Starter",
+      price: "$20",
+      period: "/mo",
+      desc: "Perfect to get started",
+      features: [
+        "1 chatbot",
+        "200 conversations / mo",
+        "~50 pages training",
+        "Basic widget customization",
+        "Unanswered question queue",
+        "Analytics dashboard",
+      ],
+      popular: false,
+    },
+    {
+      name: "Pro",
+      price: "$69",
+      period: "/mo",
+      desc: "For growing businesses",
+      features: [
+        "3 chatbots",
+        "1,000 conversations / mo",
+        "~200 pages training",
+        "Full widget customization",
+        "Analytics dashboard",
+        "Lead capture in chat",
+        'Remove "Powered by" branding',
+        "Image-based product search",
+        "Slack, Calendly, Notion integrations",
+      ],
+      popular: true,
+    },
+    {
+      name: "Business",
+      price: "$149",
+      period: "/mo",
+      desc: "For scale & teams",
+      features: [
+        "10 chatbots",
+        "5,000 conversations / mo",
+        "~500 pages training",
+        "Image-based product search",
+        "Advanced analytics + insights",
+        "Lead capture + CSV export",
+        "Custom AI persona & tone",
+        "Priority support + onboarding",
+        "API access (coming soon)",
+      ],
+      popular: false,
+    },
+  ];
 
-      {/* ═══════════════════════════════════════
-          WHY ASKYOURSITE
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 border-y border-white/5 bg-white/[0.02] backdrop-blur-sm">
-        <div className="mx-auto max-w-7xl px-6 py-12 lg:px-10">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-            {[
-              {
-                icon: Zap,
-                color: "text-amber-400 bg-amber-500/15",
-                title: "Zero code required",
-                desc: "Paste one script tag and your AI agent goes live — no developers needed.",
-              },
-              {
-                icon: Bot,
-                color: "text-primary bg-primary/15",
-                title: "Trained on your content",
-                desc: "Only answers based on your actual website — no hallucinations, no guessing.",
-              },
-              {
-                icon: Globe,
-                color: "text-emerald-400 bg-emerald-500/15",
-                title: "Up and running in minutes",
-                desc: "Enter your URL, wait for training to finish, embed the widget — done.",
-              },
-            ].map((item, i) => (
-              <div key={i} className="flex items-start gap-4">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.color}`}>
-                  <item.icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white text-sm">{item.title}</h3>
-                  <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          FEATURES BENTO GRID
-      ═══════════════════════════════════════ */}
-      <section id="features" className="relative z-10 mx-auto max-w-7xl px-6 py-28 lg:px-10">
-        <div className="text-center mb-16">
-          <SectionBadge>Features</SectionBadge>
-          <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Everything you need to deploy AI
-          </h2>
-          <p className="mt-4 text-slate-400 max-w-xl mx-auto">
-            From instant setup to advanced analytics — built for modern businesses.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-          {/* Large card 1 — AI Chat */}
-          <FeatureCard className="lg:col-span-2 p-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                <MessageSquare className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white text-lg">Instant AI Answers</h3>
-                <p className="text-sm text-slate-400 mt-1">Your AI agent answers questions in real-time, trained on your exact website content.</p>
-              </div>
-            </div>
-            {/* Mock chat */}
-            <div className="rounded-xl border border-white/8 bg-background/60 p-4 space-y-3">
-              <div className="flex justify-end">
-                <div className="rounded-2xl rounded-tr-sm bg-primary/20 border border-primary/30 px-4 py-2 text-sm text-white max-w-[75%]">
-                  What&apos;s your return policy?
-                </div>
-              </div>
-              <div className="flex justify-start gap-2">
-                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0 mt-0.5">
-                  <Bot className="h-3 w-3 text-white" />
-                </div>
-                <div className="rounded-2xl rounded-tl-sm bg-white/5 border border-white/8 px-4 py-2 text-sm text-slate-300 max-w-[75%]">
-                  We offer a <strong className="text-white">30-day free return</strong> on all orders. Just visit your account portal to initiate a return — no questions asked.
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs text-slate-600">Typing...</span>
-              </div>
-            </div>
-          </FeatureCard>
-
-          {/* Card — Image Search */}
-          <FeatureCard className="p-6 flex flex-col">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/20 text-violet-400 mb-4">
-              <Image className="h-5 w-5" />
-            </div>
-            <h3 className="font-semibold text-white">Visual Product Search</h3>
-            <p className="text-sm text-slate-400 mt-2 flex-1">Upload any image — the AI finds matching products from your catalog instantly.</p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {["🖥️","👟","🎒"].map((e, i) => (
-                <div key={i} className="aspect-square rounded-lg bg-white/5 border border-white/8 flex items-center justify-center text-2xl hover:border-violet-500/50 transition-colors cursor-pointer">
-                  {e}
-                </div>
-              ))}
-            </div>
-          </FeatureCard>
-
-          {/* Card — Train in Minutes */}
-          <FeatureCard className="p-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 mb-4">
-              <Zap className="h-5 w-5" />
-            </div>
-            <h3 className="font-semibold text-white">Train in Minutes</h3>
-            <p className="text-sm text-slate-400 mt-2">Just enter your URL — our crawler indexes your entire website automatically.</p>
-            <div className="mt-4 space-y-2">
-              {["Enter URL", "AI crawls site", "Deploy widget"].map((step, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-xs font-bold text-white">
-                    {i + 1}
-                  </div>
-                  <span className="text-sm text-slate-300">{step}</span>
-                  {i < 2 && <div className="ml-auto h-px w-4 bg-white/10" />}
-                </div>
-              ))}
-            </div>
-          </FeatureCard>
-
-          {/* Card — Custom Branding */}
-          <FeatureCard className="p-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pink-500/20 text-pink-400 mb-4">
-              <Palette className="h-5 w-5" />
-            </div>
-            <h3 className="font-semibold text-white">Custom Branding</h3>
-            <p className="text-sm text-slate-400 mt-2">Match your brand colors, fonts, and logo perfectly.</p>
-            <div className="mt-4 flex gap-2">
-              {["#3b82f6","#8b5cf6","#ec4899","#10b981","#f59e0b"].map((c, i) => (
-                <div key={i} className="h-8 w-8 rounded-full border-2 border-white/10 hover:scale-110 transition-transform cursor-pointer" style={{ background: c }} />
-              ))}
-            </div>
-          </FeatureCard>
-
-          {/* Card — Analytics */}
-          <FeatureCard className="p-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 mb-4">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <h3 className="font-semibold text-white">Analytics Dashboard</h3>
-            <p className="text-sm text-slate-400 mt-2">Understand what visitors ask most and optimize your AI&apos;s performance.</p>
-            {/* Mock bar chart */}
-            <div className="mt-4 flex items-end gap-1.5 h-12">
-              {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
-                <div
-                  key={i}
-                  className="flex-1 rounded-sm bg-gradient-to-t from-amber-500/60 to-amber-500/20"
-                  style={{ height: `${h}%` }}
-                />
-              ))}
-            </div>
-          </FeatureCard>
-
-          {/* Large card 2 — Embed */}
-          <FeatureCard className="lg:col-span-2 p-6">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
-                <Code2 className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-white text-lg">Embed Anywhere</h3>
-                <p className="text-sm text-slate-400 mt-1">One script tag. Works on any website, CMS, or e-commerce platform.</p>
-              </div>
-            </div>
-            {/* Code snippet */}
-            <div className="rounded-xl border border-white/8 bg-background/80 p-4 font-mono text-sm overflow-x-auto">
-              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/5">
-                <div className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
-                <div className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
-                <span className="ml-2 text-xs text-slate-600">index.html</span>
-              </div>
-              <span className="text-slate-500">&lt;</span>
-              <span className="text-blue-400">script</span>
-              {" "}
-              <span className="text-green-400">src</span>
-              <span className="text-slate-500">=</span>
-              <span className="text-amber-400">&quot;https://askyoursite.ai/embed.js&quot;</span>
-              {" "}
-              <span className="text-green-400">data-id</span>
-              <span className="text-slate-500">=</span>
-              <span className="text-amber-400">&quot;your-agent-id&quot;</span>
-              <span className="text-slate-500">&gt;&lt;/</span>
-              <span className="text-blue-400">script</span>
-              <span className="text-slate-500">&gt;</span>
-              <span className="animate-blink text-white ml-0.5">|</span>
-            </div>
-          </FeatureCard>
-
-        </div>
-      </section>
-
-      <IntegrationsComingSoon />
-
-      {/* ═══════════════════════════════════════
-          HOW IT WORKS
-      ═══════════════════════════════════════ */}
-      <section id="how-it-works" className="relative z-10 border-y border-white/5 bg-white/[0.01]">
-        <div className="mx-auto max-w-7xl px-6 py-28 lg:px-10">
-          <div className="text-center mb-16">
-            <SectionBadge>How it works</SectionBadge>
-            <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Live in under 5 minutes
-            </h2>
-          </div>
-
-          <div className="relative grid grid-cols-1 md:grid-cols-4 gap-8">
-            {/* Connecting line (desktop) */}
-            <div className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent animate-pulseLine" />
-
-            {[
-              { icon: Globe, title: "Enter your URL", desc: "Paste your website link and we handle the rest.", color: "from-blue-500 to-cyan-500" },
-              { icon: Bot, title: "AI trains instantly", desc: "Our crawler indexes your content and builds a knowledge base.", color: "from-violet-500 to-purple-500" },
-              { icon: Palette, title: "Customize agent", desc: "Set tone, branding, and configure your agent's personality.", color: "from-pink-500 to-rose-500" },
-              { icon: Zap, title: "Deploy anywhere", desc: "Embed the widget with one script tag and go live.", color: "from-amber-500 to-orange-500" },
-            ].map((step, i) => (
-              <div key={i} className="relative flex flex-col items-center text-center group">
-                {/* Step number */}
-                <div className={`relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br ${step.color} shadow-lg mb-6 group-hover:scale-110 transition-transform`}>
-                  <step.icon className="h-8 w-8 text-white" />
-                  <div className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-white text-xs font-bold text-ink">
-                    {i + 1}
-                  </div>
-                </div>
-                <h3 className="text-base font-semibold text-white">{step.title}</h3>
-                <p className="mt-2 text-sm text-slate-400">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          WHO IT'S FOR
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 py-20 lg:px-10">
-        <div className="text-center mb-10">
-          <SectionBadge>Who it&apos;s for</SectionBadge>
-          <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Built for every kind of builder
-          </h2>
-          <p className="mt-4 text-slate-400 max-w-xl mx-auto">
-            From solo makers to scaling teams — if you have a website, AskYourSite works for you.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            {
-              icon: User,
-              label: "Solo Founders",
-              tagline: "Look bigger, ship faster, handle support alone",
-              color: "text-violet-400",
-              bg: "bg-violet-500/10 border-violet-500/20",
-            },
-            {
-              icon: Layers,
-              label: "SaaS Companies",
-              tagline: "Cut support tickets, automate onboarding Q&A",
-              color: "text-primary",
-              bg: "bg-primary/10 border-primary/20",
-            },
-            {
-              icon: Store,
-              label: "E-commerce Stores",
-              tagline: "Product discovery, order help, 24/7 upsells",
-              color: "text-pink-400",
-              bg: "bg-pink-500/10 border-pink-500/20",
-            },
-            {
-              icon: Building2,
-              label: "Agencies",
-              tagline: "Deploy AI assistants for every client site",
-              color: "text-amber-400",
-              bg: "bg-amber-500/10 border-amber-500/20",
-            },
-            {
-              icon: Stethoscope,
-              label: "Service Businesses",
-              tagline: "Clinics, law firms & consultants — answer enquiries instantly",
-              color: "text-emerald-400",
-              bg: "bg-emerald-500/10 border-emerald-500/20",
-            },
-            {
-              icon: BookOpen,
-              label: "Content Creators",
-              tagline: "Monetize your knowledge, answer audience questions",
-              color: "text-cyan-400",
-              bg: "bg-cyan-500/10 border-cyan-500/20",
-            },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-4 rounded-2xl border p-5 backdrop-blur-sm transition-all hover:scale-[1.02] ${item.bg}`}
-            >
-              <div className={`mt-0.5 shrink-0 ${item.color}`}>
-                <item.icon className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-white text-sm">{item.label}</p>
-                <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{item.tagline}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          USE CASES
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 py-24 lg:px-10">
-        <div className="text-center mb-12">
-          <SectionBadge>Use Cases</SectionBadge>
-          <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Built for your business
-          </h2>
-          <p className="mt-4 text-slate-400 max-w-xl mx-auto">
-            Whether you sell products, run a SaaS, or offer services — AskYourSite turns your website into a 24/7 AI assistant.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              icon: ShoppingBag,
-              color: "from-pink-500 to-rose-500",
-              bg: "bg-pink-500/10",
-              badge: "E-commerce",
-              title: "Product discovery & support",
-              desc: "Let shoppers describe what they're looking for — or upload a photo — and your AI finds the matching product instantly. Fewer emails, more sales.",
-              points: ["Visual product search", "Stock & pricing answers", "Order & returns support"],
-            },
-            {
-              icon: Layers,
-              color: "from-primary to-secondary",
-              bg: "bg-primary/10",
-              badge: "SaaS & Tech",
-              title: "Self-serve customer support",
-              desc: "Answer pricing, documentation, and onboarding questions automatically so your team focuses on what matters, not repetitive tickets.",
-              points: ["Docs & FAQ coverage", "Pricing plan guidance", "Onboarding assistance"],
-            },
-            {
-              icon: Briefcase,
-              color: "from-amber-500 to-orange-500",
-              bg: "bg-amber-500/10",
-              badge: "Service business",
-              title: "Lead capture & qualification",
-              desc: "Convert curious visitors into warm leads by answering their service questions instantly — even outside business hours.",
-              points: ["Service scope answers", "Pricing enquiries", "Booking & contact flow"],
-            },
-          ].map((card, i) => (
-            <div
-              key={i}
-              className="group relative rounded-2xl border border-white/8 bg-white/[0.03] p-6 backdrop-blur-sm transition-all hover:border-primary/25 hover:bg-white/[0.05] hover:shadow-[0_8px_40px_rgba(59,130,246,0.07)]"
-            >
-              <div className={`inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br ${card.color} mb-5 shadow-lg`}>
-                <card.icon className="h-5 w-5 text-white" />
-              </div>
-              <div className="mb-3">
-                <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${card.bg} text-slate-300 mb-2`}>
-                  {card.badge}
-                </span>
-                <h3 className="text-base font-bold text-white">{card.title}</h3>
-              </div>
-              <p className="text-sm text-slate-400 leading-relaxed mb-5">{card.desc}</p>
-              <ul className="space-y-2">
-                {card.points.map((p, j) => (
-                  <li key={j} className="flex items-center gap-2 text-xs text-slate-400">
-                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-primary" />
-                    {p}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          FAQ
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 border-y border-white/5 bg-white/[0.01]">
-        <div className="mx-auto max-w-4xl px-6 py-24 lg:px-10">
-          <div className="text-center mb-12">
-            <SectionBadge>FAQ</SectionBadge>
-            <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Common questions
-            </h2>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <FAQItem
-              question="How does training work?"
-              answer="You enter your website URL and our crawler reads every page, then builds an AI knowledge base from your actual content. No manual data entry needed."
-            />
-            <FAQItem
-              question="Does the AI make things up?"
-              answer="No. The AI only answers based on what exists on your website. If a question falls outside that content, it says so honestly instead of guessing."
-            />
-            <FAQItem
-              question="How long does setup take?"
-              answer="Under 5 minutes for most websites. Enter your URL, wait for training to finish, copy the one-line script tag, and paste it into your site — done."
-            />
-            <FAQItem
-              question="What websites does it work on?"
-              answer="Any website that allows custom HTML — Shopify, WordPress, Webflow, Wix, or a custom-built site. If you can add a script tag, you can embed AskYourSite."
-            />
-            <FAQItem
-              question="Can I customize the chat widget?"
-              answer="Yes. You control the widget name, avatar, welcome message, colors, and behavior — so it matches your brand perfectly."
-            />
-            <FAQItem
-              question="Is there a free trial?"
-              answer="Yes. Every plan starts with a 7-day free trial — no credit card required. After the trial you choose a plan to continue. Cancel anytime with no questions asked."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          PRICING
-      ═══════════════════════════════════════ */}
-      <section id="pricing" className="relative z-10 mx-auto max-w-7xl px-6 py-28 lg:px-10">
-        <div className="text-center mb-16">
-          <SectionBadge>Pricing</SectionBadge>
-          <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+  return (
+    <section id="pricing" className="relative py-24 px-4">
+      <div className="max-w-5xl mx-auto">
+        <div className="text-center mb-14">
+          <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-violet-400 mb-4">
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+            Pricing
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-display font-bold text-white tracking-tight mb-4">
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 text-slate-400">7-day free trial on Pro plan. No credit card required.</p>
+          <p className="text-slate-400 text-lg">7-day free trial · No credit card required</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {[
-            {
-              name: "Starter",
-              price: "$20",
-              period: "/mo",
-              desc: "Perfect to get started",
-              features: [
-                "1 chatbot",
-                "200 conversations / mo",
-                "~50 pages training",
-                "Basic widget customization",
-                "Unanswered question queue",
-                "Analytics dashboard",
-              ],
-              cta: "Start free trial",
-              popular: false,
-              ctaStyle: "border border-white/10 bg-white/5 text-white hover:bg-white/10",
-            },
-            {
-              name: "Pro",
-              price: "$69",
-              period: "/mo",
-              desc: "For growing businesses",
-              features: [
-                "3 chatbots",
-                "1,000 conversations / mo",
-                "~200 pages training",
-                "Full widget customization",
-                "Analytics dashboard",
-                "Lead capture in chat",
-                'Remove "Powered by" branding',
-                "Email support",
-                "Image-based product search",
-              ],
-              cta: "Start free trial",
-              popular: true,
-              ctaStyle: "bg-white text-ink hover:bg-slate-100",
-            },
-            {
-              name: "Business",
-              price: "$149",
-              period: "/mo",
-              desc: "For scale & teams",
-              features: [
-                "10 chatbots",
-                "5,000 conversations / mo",
-                "~500 pages training",
-                "Image-based product search",
-                "Advanced analytics + insights",
-                "Lead capture + CSV export",
-                "Custom AI persona & tone",
-                "Priority support + onboarding",
-                "API access (coming soon)",
-              ],
-              cta: "Start free trial",
-              popular: false,
-              ctaStyle: "border border-white/10 bg-white/5 text-white hover:bg-white/10",
-            },
-          ].map((plan, i) => (
+          {plans.map((plan) => (
             <div
-              key={i}
+              key={plan.name}
               className={`relative rounded-2xl p-7 flex flex-col gap-6 transition-all ${
                 plan.popular
-                  ? "border border-primary/60 bg-gradient-to-b from-primary/10 to-transparent shadow-glow scale-105"
+                  ? "border border-violet-500/50 bg-gradient-to-b from-violet-900/20 to-transparent shadow-[0_0_40px_rgba(139,92,246,0.15)] scale-[1.02]"
                   : "border border-white/8 bg-white/[0.02]"
               }`}
             >
               {plan.popular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-primary to-secondary px-4 py-1 text-xs font-bold text-white shadow-glow">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-1 text-xs font-bold text-white">
                   Most Popular
                 </div>
               )}
@@ -853,9 +222,9 @@ export default function Home() {
               </div>
 
               <ul className="flex flex-col gap-3 flex-1">
-                {plan.features.map((f, j) => (
-                  <li key={j} className="flex items-center gap-3 text-sm text-slate-300">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-center gap-3 text-sm text-slate-300">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-400" />
                     {f}
                   </li>
                 ))}
@@ -863,9 +232,13 @@ export default function Home() {
 
               <Link
                 href="/login"
-                className={`w-full rounded-full py-3 text-center text-sm font-semibold transition-all hover:scale-105 active:scale-95 ${plan.ctaStyle}`}
+                className={`w-full rounded-xl py-3 text-center text-sm font-semibold transition-all ${
+                  plan.popular
+                    ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-500 hover:to-blue-500"
+                    : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                }`}
               >
-                {plan.cta}
+                Start free trial
               </Link>
             </div>
           ))}
@@ -874,92 +247,136 @@ export default function Home() {
         <p className="mt-8 text-center text-xs text-slate-600">
           No credit card required to start · Cancel anytime · Secure payments via Dodo Payments
         </p>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* ═══════════════════════════════════════
-          FINAL CTA BANNER
-      ═══════════════════════════════════════ */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-28 lg:px-10">
-        <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/15 via-secondary/10 to-pink-500/10 p-12 text-center">
-          {/* Background glow */}
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.2),transparent_70%)]" />
-          <div className="pointer-events-none absolute inset-0 dot-grid opacity-20" />
-
-          <div className="relative">
-            <Sparkles className="mx-auto h-10 w-10 text-primary mb-4 animate-breathe" />
-            <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">
-              Ready to launch your AI Agent?
-            </h2>
-            <p className="mt-4 text-slate-400 max-w-lg mx-auto">
-              Turn your website into a 24/7 AI agent. Set up in minutes, no code required.
-            </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link
-                href="/login"
-                className="group inline-flex items-center gap-2 rounded-full bg-white px-8 py-3.5 text-sm font-bold text-ink shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-105 transition-all"
-              >
-                Start your free trial
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <p className="text-xs text-slate-600">7-day free trial · No credit card · Cancel anytime</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════
-          FOOTER
-      ═══════════════════════════════════════ */}
-      <footer className="relative z-10 border-t border-white/5 bg-background">
-        <div className="mx-auto max-w-7xl px-6 py-12 lg:px-10">
-          <div className="grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-5 mb-12">
-            {/* Brand col */}
-            <div className="col-span-2 lg:col-span-2">
-              <div className="flex items-center gap-2 mb-4">
-                <NextImage src="/logo.png" alt="AskYourSite" width={44} height={44} className="rounded-xl" />
-                <span className="font-display text-lg font-bold text-white">AskYourSite</span>
-              </div>
-              <p className="text-sm text-slate-500 max-w-xs">
-                Turn any website into a 24/7 AI sales and support agent. No code required.
-              </p>
-              <div className="flex gap-3 mt-5">
-                <a href="https://x.com/ravitej_neeli" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
-                  <Twitter className="h-3.5 w-3.5" />
-                </a>
-                <a href="https://www.linkedin.com/in/ravitej-c-neeli-612877266/" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/8 bg-white/5 text-slate-400 hover:text-white hover:border-white/20 transition-colors">
-                  <Linkedin className="h-3.5 w-3.5" />
-                </a>
-              </div>
-            </div>
-
-            {/* Links */}
+/* ─── Footer ─────────────────────────────────────────────── */
+function Footer() {
+  return (
+    <footer className="border-t border-white/[0.06] bg-[#0A0A10] px-4 py-16">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
+        {/* Brand */}
+        <div className="md:col-span-1">
+          <Link href="/" className="flex items-center gap-2 mb-4">
+            <Image src="/logo.png" alt="AskYourSite" width={28} height={28} className="rounded-lg" />
+            <span className="font-display text-sm font-bold text-white">AskYourSite</span>
+          </Link>
+          <p className="text-xs text-slate-500 leading-relaxed mb-5">
+            Turn any website into an AI-powered sales and support agent. No code required.
+          </p>
+          <div className="flex gap-3">
             {[
-              { heading: "Product", links: [{ label: "Features", href: "#features" }, { label: "Pricing", href: "#pricing" }, { label: "Changelog", href: "#" }, { label: "Roadmap", href: "#" }] },
-              { heading: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Careers", href: "#" }, { label: "Press", href: "#" }] },
-              { heading: "Legal", links: [{ label: "Privacy Policy", href: "/privacy" }, { label: "Terms of Service", href: "/terms" }, { label: "Security", href: "#" }, { label: "Cookies", href: "#" }] },
-            ].map((col) => (
-              <div key={col.heading}>
-                <h4 className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-4">{col.heading}</h4>
-                <ul className="space-y-2.5">
-                  {col.links.map((link) => (
-                    <li key={link.label}>
-                      <Link href={link.href} className="text-sm text-slate-400 hover:text-white transition-colors">{link.label}</Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              { icon: TwitterIcon, href: "#" },
+              { icon: LinkedinIcon, href: "#" },
+              { icon: GithubIcon, href: "#" },
+            ].map(({ icon: Icon, href }) => (
+              <a
+                key={href}
+                href={href}
+                className="h-8 w-8 rounded-lg border border-white/8 bg-white/3 flex items-center justify-center text-slate-500 hover:text-white hover:border-white/20 transition-all"
+              >
+                <Icon className="h-3.5 w-3.5" />
+              </a>
             ))}
           </div>
-
-          <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
-            <p>© 2026 AskYourSite. All rights reserved.</p>
-            <div className="flex items-center gap-4">
-              <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy Policy</Link>
-              <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms of Service</Link>
-            </div>
-          </div>
         </div>
-      </footer>
-    </main>
+
+        {/* Links */}
+        {[
+          {
+            title: "Product",
+            links: [
+              { label: "Features", href: "#features" },
+              { label: "Integrations", href: "#integrations" },
+              { label: "Pricing", href: "#pricing" },
+              { label: "Changelog", href: "#" },
+            ],
+          },
+          {
+            title: "Company",
+            links: [
+              { label: "About", href: "#" },
+              { label: "Blog", href: "#" },
+              { label: "Docs", href: "/docs" },
+              { label: "Support", href: "#" },
+            ],
+          },
+          {
+            title: "Legal",
+            links: [
+              { label: "Privacy Policy", href: "/privacy" },
+              { label: "Terms of Service", href: "/terms" },
+              { label: "Cookie Policy", href: "#" },
+            ],
+          },
+        ].map((col) => (
+          <div key={col.title}>
+            <p className="text-xs font-semibold text-white mb-4 uppercase tracking-widest">{col.title}</p>
+            <ul className="space-y-2.5">
+              {col.links.map((l) => (
+                <li key={l.label}>
+                  <Link href={l.href} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="max-w-6xl mx-auto mt-12 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p className="text-xs text-slate-600">© 2025 AskYourSite. All rights reserved.</p>
+        <p className="text-xs text-slate-700">Made with ❤️ for businesses everywhere</p>
+      </div>
+    </footer>
+  );
+}
+
+/* ─── Page ───────────────────────────────────────────────── */
+export default function HomePage() {
+  return (
+    <div className="min-h-screen bg-[#0D0D1A] text-white">
+      <Navbar />
+
+      {/* Hero with interactive URL demo */}
+      <HeroSection />
+
+      {/* Animated live demo chat */}
+      <div id="live-demo">
+        <LiveDemoChat />
+      </div>
+
+      {/* Bento grid features */}
+      <div id="features">
+        <BentoFeatures />
+      </div>
+
+      {/* How it works */}
+      <div id="how-it-works">
+        <HowItWorks />
+      </div>
+
+      {/* Sticky scroll features */}
+      <StickyFeatures />
+
+      {/* Integrations showcase */}
+      <div id="integrations">
+        <IntegrationsShowcase />
+      </div>
+
+      {/* Social proof */}
+      <SocialProof />
+
+      {/* Pricing */}
+      <PricingSection />
+
+      {/* Final CTA */}
+      <FinalCTA />
+
+      <Footer />
+    </div>
   );
 }
