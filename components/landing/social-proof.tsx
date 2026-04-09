@@ -33,9 +33,9 @@ const TESTIMONIALS = [
 ];
 
 const STATS = [
-  { value: "10,000+", label: "Conversations per day" },
-  { value: "500+", label: "Businesses using AskYourSite" },
-  { value: "< 1s", label: "Average response time" },
+  { value: "1000+", label: "Conversations per day" },
+  { value: "100+", label: "Businesses using AskYourSite" },
+  { value: "< 3s", label: "Average response time" },
   { value: "80%", label: "Questions answered automatically" },
 ];
 

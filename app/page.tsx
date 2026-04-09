@@ -328,7 +328,7 @@ function Footer() {
       </div>
 
       <div className="max-w-6xl mx-auto mt-12 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-xs text-slate-600">© 2025 AskYourSite. All rights reserved.</p>
+        <p className="text-xs text-slate-600">© 2026 AskYourSite. All rights reserved.</p>
         <p className="text-xs text-slate-700">Made with ❤️ for businesses everywhere</p>
       </div>
     </footer>
