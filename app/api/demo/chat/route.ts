@@ -74,7 +74,7 @@ IMPORTANT RULES:
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const response = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3-flash-preview",
           contents: [{ role: "user", parts: [{ text: lastMessage }] }],
           config: { systemInstruction: systemPrompt, temperature: 0.6, maxOutputTokens: 400 },
         });

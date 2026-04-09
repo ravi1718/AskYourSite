@@ -154,7 +154,7 @@ export async function POST(req: Request) {
 
         // Describe the image with Gemini Vision
         const visionResult = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3-flash-preview",
           contents: [{
             parts: [
               { text: `Describe this product image in detail for search purposes. Include: product type, colors, style, material if visible, key features, and any text visible. Alt text hint: "${altText}". Be concise (2-3 sentences).` },
