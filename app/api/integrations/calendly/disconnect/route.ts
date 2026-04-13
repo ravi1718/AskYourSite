@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export async function POST() {
   const supabase = await getSupabaseServerClient();
   const { data: { user } } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
 
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "Server error" }, { status: 500 });
@@ -13,7 +17,7 @@ export async function POST() {
   await admin
     .from("user_integrations")
     .delete()
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "calendly");
 
   return NextResponse.json({ ok: true });

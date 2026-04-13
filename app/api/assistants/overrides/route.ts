@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // GET /api/assistants/overrides?assistantId=xxx — list overrides for an assistant
 export async function GET(req: Request) {
@@ -16,16 +18,21 @@ export async function GET(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const workspace = await getWorkspaceContext();
+    const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+    const admin = getSupabaseAdminClient();
+    const client = admin ?? supabase;
+
     // Verify ownership
-    const { data: assistant } = await supabase
+    const { data: assistant } = await client
       .from("assistants")
       .select("id")
       .eq("id", assistantId)
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveUserId)
       .single();
     if (!assistant) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("response_overrides")
       .select("id, trigger_phrase, override_response, is_active, created_at")
       .eq("assistant_id", assistantId)
@@ -52,16 +59,21 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const workspace = await getWorkspaceContext();
+    const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+    const admin = getSupabaseAdminClient();
+    const client = admin ?? supabase;
+
     // Verify ownership
-    const { data: assistant } = await supabase
+    const { data: assistant } = await client
       .from("assistants")
       .select("id")
       .eq("id", assistantId)
-      .eq("user_id", user.id)
+      .eq("user_id", effectiveUserId)
       .single();
     if (!assistant) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    const { data, error } = await supabase
+    const { data, error } = await client
       .from("response_overrides")
       .insert({
         assistant_id: assistantId,
@@ -91,8 +103,10 @@ export async function DELETE(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // RLS enforces ownership; just delete
-    const { error } = await supabase
+    const admin = getSupabaseAdminClient();
+    const client = admin ?? supabase;
+
+    const { error } = await client
       .from("response_overrides")
       .delete()
       .eq("id", id);
@@ -118,7 +132,10 @@ export async function PATCH(req: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { error } = await supabase
+    const admin = getSupabaseAdminClient();
+    const client = admin ?? supabase;
+
+    const { error } = await client
       .from("response_overrides")
       .update({ is_active: isActive })
       .eq("id", id);

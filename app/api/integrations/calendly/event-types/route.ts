@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function getValidToken(
@@ -45,13 +46,16 @@ export async function GET() {
   const { data: { user } } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "Server error" }, { status: 500 });
 
   const { data: integration } = await admin
     .from("user_integrations")
     .select("access_token, refresh_token, token_expires_at, metadata")
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "calendly")
     .single();
 
@@ -64,7 +68,7 @@ export async function GET() {
     return NextResponse.json({ error: "Missing Calendly user URI" }, { status: 400 });
   }
 
-  const accessToken = await getValidToken(admin, user.id, integration);
+  const accessToken = await getValidToken(admin, effectiveUserId, integration);
 
   const params = new URLSearchParams({ user: userUri, active: "true", count: "20" });
   const res = await fetch(`https://api.calendly.com/event_types?${params.toString()}`, {

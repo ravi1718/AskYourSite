@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // GET /api/integrations/hubspot/connect
 // Initiates HubSpot OAuth flow.
@@ -15,7 +16,11 @@ export async function GET() {
 
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.redirect(`${appUrl}/dashboard/integrations?error=server_error`);
-  const { data: usage } = await admin.rpc("get_user_usage", { p_user_id: user.id } as any).single();
+
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  const { data: usage } = await admin.rpc("get_user_usage", { p_user_id: effectiveUserId } as any).single();
   const plan = (usage as any)?.plan_code;
   if (plan !== "pro" && plan !== "business") {
     return NextResponse.redirect(`${appUrl}/dashboard/integrations?error=upgrade_required`);
@@ -26,8 +31,9 @@ export async function GET() {
   }
 
   // HMAC CSRF state
+  // Use effectiveUserId so the callback stores integration under the workspace owner's account
   const timestamp = Date.now();
-  const statePayload = `${user.id}.${timestamp}`;
+  const statePayload = `${effectiveUserId}.${timestamp}`;
   const sig = crypto
     .createHmac("sha256", process.env.HUBSPOT_CLIENT_SECRET)
     .update(statePayload)

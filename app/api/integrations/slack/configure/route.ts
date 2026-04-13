@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServerClient();
@@ -10,8 +11,11 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "Server error" }, { status: 500 });
 
-  // Plan gate
-  const { data: usage } = await admin.rpc("get_user_usage", { p_user_id: user.id } as any).single();
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  // Plan gate (use workspace owner's plan)
+  const { data: usage } = await admin.rpc("get_user_usage", { p_user_id: effectiveUserId } as any).single();
   const plan = (usage as any)?.plan_code;
   if (plan !== "pro" && plan !== "business") {
     return NextResponse.json({ error: "Slack integration requires Pro plan or above" }, { status: 403 });
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
   const { data: integration } = await admin
     .from("user_integrations")
     .select("metadata")
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "slack")
     .single();
 
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
   const { error } = await admin
     .from("user_integrations")
     .update({ metadata: updatedMeta, updated_at: new Date().toISOString() })
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "slack");
 
   if (error) {

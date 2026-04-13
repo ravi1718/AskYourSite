@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 import OverridesClient from "./overrides-client";
 
 export default async function OverridesPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,17 +15,23 @@ export default async function OverridesPage({ params }: { params: Promise<{ id: 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Verify ownership
-  const { data: assistant, error } = await supabase
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  // Verify the assistant belongs to the workspace owner (use admin client to bypass RLS)
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
+  const { data: assistant, error } = await client
     .from("assistants")
     .select("id, name")
     .eq("id", assistantId)
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .single();
 
   if (error || !assistant) redirect("/dashboard/assistants");
 
-  const { data: overrides } = await supabase
+  const { data: overrides } = await client
     .from("response_overrides")
     .select("id, trigger_phrase, override_response, is_active, created_at")
     .eq("assistant_id", assistantId)

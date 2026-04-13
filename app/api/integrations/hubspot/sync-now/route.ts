@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncHubSpotConfig } from "@/lib/hubspot/sync";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export const maxDuration = 60;
 
@@ -10,6 +11,9 @@ export async function POST(req: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
 
   const { botId } = await req.json();
   if (!botId) return NextResponse.json({ error: "botId required" }, { status: 400 });
@@ -21,7 +25,7 @@ export async function POST(req: NextRequest) {
     .from("hubspot_sync_configs")
     .select("id")
     .eq("bot_id", botId)
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .single();
 
   if (!config) return NextResponse.json({ error: "No sync config found" }, { status: 404 });

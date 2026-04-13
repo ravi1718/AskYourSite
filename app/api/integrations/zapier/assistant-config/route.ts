@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // POST /api/integrations/zapier/assistant-config
 // Toggles zapierEnabled on an assistant's widget_config.
@@ -19,13 +20,16 @@ export async function POST(req: NextRequest) {
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
   const { data: assistant } = await admin
     .from("assistants")
     .select("id, user_id, widget_config")
     .eq("id", assistantId)
     .single();
 
-  if (!assistant || assistant.user_id !== user.id) {
+  if (!assistant || assistant.user_id !== effectiveUserId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

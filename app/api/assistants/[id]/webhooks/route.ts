@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getWorkspaceContext } from '@/lib/workspace';
 import crypto from 'crypto';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -9,11 +11,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await supabase
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from('agent_webhooks')
     .select('id, name, action, endpoint_url, is_active, last_triggered_at, trigger_count, created_at')
     .eq('assistant_id', assistantId)
-    .eq('user_id', user.id)
+    .eq('user_id', effectiveUserId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -27,14 +34,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
   const { name, action, endpoint_url, secret_key } = await req.json();
   if (!name || !action || !endpoint_url) {
     return NextResponse.json({ error: 'name, action, and endpoint_url are required' }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('agent_webhooks')
-    .insert({ assistant_id: assistantId, user_id: user.id, name, action, endpoint_url, secret_key: secret_key || null })
+    .insert({ assistant_id: assistantId, user_id: effectiveUserId, name, action, endpoint_url, secret_key: secret_key || null })
     .select('id, name, action, endpoint_url, is_active, trigger_count, created_at')
     .single();
 

@@ -2,7 +2,9 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { User, Mail, Calendar, Shield } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
+import { ApiKeysSection } from "@/components/settings/api-keys-section";
 import { updateDisplayName } from "./actions";
 
 export default async function SettingsPage() {
@@ -30,6 +32,17 @@ export default async function SettingsPage() {
     month: "long",
     year: "numeric",
   });
+
+  // Fetch API keys (prefix only — never the full key)
+  const admin = getSupabaseAdminClient();
+  const { data: apiKeys } = admin
+    ? await admin
+        .from("api_keys")
+        .select("id, key_prefix, label, last_used_at, created_at, is_active")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="mx-auto max-w-2xl w-full animate-fade-up">
@@ -120,6 +133,9 @@ export default async function SettingsPage() {
           </div>
         </div>
       </section>
+
+      {/* API Keys */}
+      <ApiKeysSection initialKeys={apiKeys ?? []} />
 
       {/* Danger Zone */}
       <section className="rounded-2xl border border-ember/20 bg-ember/5 p-6">

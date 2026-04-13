@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getWorkspaceContext } from '@/lib/workspace';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: assistantId } = await params;
@@ -8,11 +10,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data, error } = await supabase
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
+  const { data, error } = await client
     .from('proactive_triggers')
     .select('id, name, trigger_type, condition_value, url_pattern, message, cooldown_hours, is_active, fire_count, created_at')
     .eq('assistant_id', assistantId)
-    .eq('user_id', user.id)
+    .eq('user_id', effectiveUserId)
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -26,16 +33,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
   const { name, trigger_type, condition_value, url_pattern, message, cooldown_hours } = await req.json();
   if (!name || !trigger_type || !message || !condition_value) {
     return NextResponse.json({ error: 'name, trigger_type, condition_value, and message are required' }, { status: 400 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('proactive_triggers')
     .insert({
       assistant_id: assistantId,
-      user_id: user.id,
+      user_id: effectiveUserId,
       name,
       trigger_type,
       condition_value,

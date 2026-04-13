@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export async function POST(req: NextRequest) {
   const supabase = await getSupabaseServerClient();
   const { data: { user } } = (await supabase?.auth.getUser()) ?? { data: { user: null } };
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
 
   const body = await req.json().catch(() => null);
   if (!body?.assistantId) {
@@ -22,7 +26,7 @@ export async function POST(req: NextRequest) {
     .from("assistants")
     .select("id, widget_config")
     .eq("id", assistantId)
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .single();
 
   if (!assistant) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // POST /api/integrations/notion/sync-config
 // Saves which Notion pages/databases should sync to a bot.
@@ -10,6 +11,9 @@ export async function POST(req: NextRequest) {
   if (!supabase) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
 
   const { botId, selectedPages = [], selectedDatabases = [], notionEnabled = true, syncFrequency = "daily" } = await req.json();
 
@@ -25,7 +29,7 @@ export async function POST(req: NextRequest) {
     .eq("id", botId)
     .single();
 
-  if (!bot || bot.user_id !== user.id) {
+  if (!bot || bot.user_id !== effectiveUserId) {
     return NextResponse.json({ error: "Bot not found" }, { status: 404 });
   }
 
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
   const { data: integration } = await admin
     .from("user_integrations")
     .select("id")
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "notion")
     .single();
 
@@ -41,7 +45,7 @@ export async function POST(req: NextRequest) {
   await admin.from("notion_sync_configs").upsert(
     {
       bot_id: botId,
-      user_id: user.id,
+      user_id: effectiveUserId,
       notion_integration_id: integration?.id ?? null,
       selected_pages: selectedPages,
       selected_databases: selectedDatabases,

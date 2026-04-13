@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { syncNotionConfig } from "@/lib/notion/sync";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // Allow up to 60 seconds — Notion sync is synchronous now (not fire-and-forget)
 export const maxDuration = 60;
@@ -15,6 +16,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
   const { botId } = await req.json();
   if (!botId) return NextResponse.json({ error: "botId is required" }, { status: 400 });
 
@@ -25,7 +29,7 @@ export async function POST(req: NextRequest) {
     .from("notion_sync_configs")
     .select("id, user_id")
     .eq("bot_id", botId)
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .single();
 
   if (!config) {

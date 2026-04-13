@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { decrypt } from "@/lib/crypto";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 const NOTION_VERSION = "2022-06-28";
 
@@ -44,13 +45,16 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
   const { data: integration } = await admin
     .from("user_integrations")
     .select("access_token")
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "notion")
     .single();
 

@@ -3,25 +3,31 @@ import { Plus, Bot, Link as LinkIcon } from "lucide-react";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export default async function AssistantsPage() {
   const supabase = await getSupabaseServerClient();
 
-  if (!supabase) {
-    redirect("/login");
-  }
+  if (!supabase) redirect("/login");
 
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
 
-  if (!user) {
-    redirect("/login");
-  }
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const isTeamMember = workspace?.isTeamMember ?? false;
 
-  const { data: assistants } = await supabase
-    .from("assistants")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+  // Use admin client to fetch assistants by workspace owner ID
+  // (team member's RLS session won't have the owner's row without admin bypass)
+  const admin = getSupabaseAdminClient();
+  const { data: assistants } = admin
+    ? await admin
+        .from("assistants")
+        .select("*")
+        .eq("user_id", effectiveUserId)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   return (
     <div className="mx-auto max-w-6xl w-full animate-fade-up px-4">
@@ -30,12 +36,14 @@ export default async function AssistantsPage() {
           <h1 className="text-3xl font-display font-semibold text-white tracking-tight">AI Assistants</h1>
           <p className="mt-2 text-sm text-slate-400">Manage and train your website agents.</p>
         </div>
-        <Link href="/dashboard/assistants/new">
-          <Button className="bg-white text-ink hover:bg-slate-200 gap-2 font-medium shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-            <Plus className="h-4 w-4" />
-            Create Assistant
-          </Button>
-        </Link>
+        {!isTeamMember && (
+          <Link href="/dashboard/assistants/new">
+            <Button className="bg-white text-ink hover:bg-slate-200 gap-2 font-medium shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+              <Plus className="h-4 w-4" />
+              Create Assistant
+            </Button>
+          </Link>
+        )}
       </header>
 
       {(!assistants || assistants.length === 0) ? (
@@ -44,10 +52,16 @@ export default async function AssistantsPage() {
             <Bot className="h-8 w-8 text-primary" />
           </div>
           <h2 className="text-xl font-semibold text-white mb-2">No assistants yet</h2>
-          <p className="text-slate-400 text-sm max-w-md mb-6">Create your first AI agent and train it on your website's data to start answering customer queries automatically.</p>
-          <Link href="/dashboard/assistants/new">
-            <Button>Get Started</Button>
-          </Link>
+          <p className="text-slate-400 text-sm max-w-md mb-6">
+            {isTeamMember
+              ? "The workspace admin hasn't created any assistants yet."
+              : "Create your first AI agent and train it on your website's data to start answering customer queries automatically."}
+          </p>
+          {!isTeamMember && (
+            <Link href="/dashboard/assistants/new">
+              <Button>Get Started</Button>
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

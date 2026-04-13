@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin';
+import { getWorkspaceContext } from '@/lib/workspace';
 import crypto from 'crypto';
 
 export async function POST(
@@ -12,12 +14,17 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { data: webhook } = await supabase
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+  const client = admin ?? supabase;
+
+  const { data: webhook } = await client
     .from('agent_webhooks')
     .select('*')
     .eq('id', webhookId)
     .eq('assistant_id', assistantId)
-    .eq('user_id', user.id)
+    .eq('user_id', effectiveUserId)
     .single();
 
   if (!webhook) return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });

@@ -5,6 +5,7 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { Button } from "@/components/ui/button";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 import { BusinessInsights } from "@/components/dashboard/business-insights";
 
 async function getAnalytics(userId: string, isBusinessPlan = false) {
@@ -219,11 +220,18 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const { data: usageData } = await supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single();
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const isTeamMember = workspace?.isTeamMember ?? false;
+
+  // Usage and analytics always reflect the workspace owner's data
+  const admin = getSupabaseAdminClient();
+  const usageClient = admin ?? supabase;
+  const { data: usageData } = await usageClient.rpc("get_user_usage", { p_user_id: effectiveUserId } as any).single();
   const usage = usageData as any;
   const isBusinessPlan = usage?.plan_code === "business";
 
-  const analytics = await getAnalytics(user.id, isBusinessPlan);
+  const analytics = await getAnalytics(effectiveUserId, isBusinessPlan);
 
   const totalConversations = analytics?.totalConversations ?? 0;
   const weeklyChange = analytics?.weeklyChange ?? 0;
@@ -245,12 +253,14 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-4">
            <SignOutButton />
-           <Link href="/dashboard/assistants/new">
-             <Button className="bg-white text-ink hover:bg-slate-200 gap-2 font-medium shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-               <Plus className="h-4 w-4" />
-               Create AI Assistant
-             </Button>
-           </Link>
+           {!isTeamMember && (
+             <Link href="/dashboard/assistants/new">
+               <Button className="bg-white text-ink hover:bg-slate-200 gap-2 font-medium shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                 <Plus className="h-4 w-4" />
+                 Create AI Assistant
+               </Button>
+             </Link>
+           )}
         </div>
       </header>
 
@@ -282,7 +292,7 @@ export default async function DashboardPage() {
                 </span>
               </div>
             </div>
-            {usage.plan_code !== 'business' && (
+            {!isTeamMember && usage.plan_code !== 'business' && (
               <Link href="/dashboard/billing">
                 <Button variant="ghost" className="border border-primary/50 text-primary hover:bg-primary/10 whitespace-nowrap shadow-[0_0_10px_rgba(139,92,246,0.1)]">
                   Upgrade Plan

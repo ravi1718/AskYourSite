@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 import { CSVExportButton } from "./csv-export-button";
 
 export default async function LeadsPage() {
@@ -8,18 +10,36 @@ export default async function LeadsPage() {
 
   if (!user || !supabase) redirect("/login");
 
-  const { data: usageData } = await supabase
-    .rpc("get_user_usage", { p_user_id: user.id } as any)
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  // Check plan against workspace owner's usage
+  const admin = getSupabaseAdminClient();
+  const usageClient = admin ?? supabase;
+  const { data: usageData } = await usageClient
+    .rpc("get_user_usage", { p_user_id: effectiveUserId } as any)
     .single();
 
   const featureFlags = (usageData as any)?.feature_flags ?? {};
   if (!featureFlags.lead_capture) redirect("/dashboard");
 
-  const { data: leads } = await supabase
-    .from("leads")
-    .select("id, name, email, phone, created_at, assistants(name)")
-    .order("created_at", { ascending: false })
-    .limit(500);
+  // Fetch leads for the workspace owner's assistants
+  const { data: assistants } = admin
+    ? await admin.from("assistants").select("id").eq("user_id", effectiveUserId)
+    : await supabase.from("assistants").select("id").eq("user_id", effectiveUserId);
+
+  const assistantIds = (assistants ?? []).map((a: any) => a.id);
+
+  let leads: any[] = [];
+  if (assistantIds.length > 0 && admin) {
+    const { data } = await admin
+      .from("leads")
+      .select("id, name, email, phone, created_at, assistants(name)")
+      .in("assistant_id", assistantIds)
+      .order("created_at", { ascending: false })
+      .limit(500);
+    leads = data ?? [];
+  }
 
   const csvExportEnabled = !!featureFlags.csv_export;
 
@@ -28,13 +48,13 @@ export default async function LeadsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Leads</h1>
-          <p className="text-sm text-slate-400 mt-1">{leads?.length ?? 0} captured leads</p>
+          <p className="text-sm text-slate-400 mt-1">{leads.length} captured leads</p>
         </div>
         {csvExportEnabled && <CSVExportButton />}
       </div>
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-card">
-        {leads && leads.length > 0 ? (
+        {leads.length > 0 ? (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">

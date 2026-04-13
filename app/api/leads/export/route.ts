@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 export async function GET() {
   const supabase = await getSupabaseServerClient();
@@ -9,8 +11,12 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: usageData } = await supabase
-    .rpc("get_user_usage", { p_user_id: user.id } as any)
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+  const admin = getSupabaseAdminClient();
+
+  const { data: usageData } = await (admin ?? supabase)
+    .rpc("get_user_usage", { p_user_id: effectiveUserId } as any)
     .single();
 
   const featureFlags = (usageData as any)?.feature_flags ?? {};
@@ -18,9 +24,18 @@ export async function GET() {
     return NextResponse.json({ error: "CSV export not available on your plan" }, { status: 403 });
   }
 
-  const { data: leads, error } = await supabase
+  // Fetch leads for the workspace owner's assistants
+  const { data: assistants } = await (admin ?? supabase)
+    .from("assistants")
+    .select("id")
+    .eq("user_id", effectiveUserId);
+
+  const assistantIds = (assistants ?? []).map((a: { id: string }) => a.id);
+
+  const { data: leads, error } = await (admin ?? supabase)
     .from("leads")
     .select("name, email, phone, created_at, assistants(name)")
+    .in("assistant_id", assistantIds.length > 0 ? assistantIds : [""])
     .order("created_at", { ascending: false });
 
   if (error) {

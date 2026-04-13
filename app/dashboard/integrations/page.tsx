@@ -371,12 +371,13 @@ function CalendlyAssistantConfig() {
     (async () => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const meRes = await fetch("/api/workspace/me");
+      if (!meRes.ok) return;
+      const { effectiveUserId } = await meRes.json();
 
       const [etRes, assRes] = await Promise.all([
         fetch("/api/integrations/calendly/event-types"),
-        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", effectiveUserId).order("created_at"),
       ]);
 
       if (etRes.ok) {
@@ -537,17 +538,16 @@ function SlackAssistantConfig() {
     (async () => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const meRes = await fetch("/api/workspace/me");
+      if (!meRes.ok) return;
+      const { effectiveUserId, planCode: pc } = await meRes.json();
+      setPlan(pc ?? "starter");
 
-      // Fetch plan, integration metadata, and assistants in parallel
-      const [usageRes, integrationRes, assistantsRes] = await Promise.all([
-        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
-        supabase.from("user_integrations").select("metadata").eq("user_id", user.id).eq("provider", "slack").single(),
-        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+      // Fetch integration metadata and assistants in parallel
+      const [integrationRes, assistantsRes] = await Promise.all([
+        supabase.from("user_integrations").select("metadata").eq("user_id", effectiveUserId).eq("provider", "slack").single(),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", effectiveUserId).order("created_at"),
       ]);
-
-      setPlan((usageRes.data as any)?.plan_code ?? "starter");
 
       if (integrationRes.data?.metadata) {
         const meta = integrationRes.data.metadata as Record<string, any>;
@@ -761,14 +761,14 @@ function ZapierAssistantConfig() {
     (async () => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const [usageRes, keysRes, assRes] = await Promise.all([
-        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
+      const meRes = await fetch("/api/workspace/me");
+      if (!meRes.ok) return;
+      const { effectiveUserId, planCode: pc } = await meRes.json();
+      setPlan(pc ?? "starter");
+      const [keysRes, assRes] = await Promise.all([
         fetch("/api/keys"),
-        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", effectiveUserId).order("created_at"),
       ]);
-      setPlan((usageRes.data as any)?.plan_code ?? "starter");
       if (keysRes.ok) {
         const { keys } = await keysRes.json();
         setApiKeys(keys ?? []);
@@ -969,17 +969,16 @@ function NotionAssistantConfig() {
     (async () => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const meRes = await fetch("/api/workspace/me");
+      if (!meRes.ok) return;
+      const { effectiveUserId, planCode: pc } = await meRes.json();
+      setPlan(pc ?? "starter");
 
-      const [usageRes, integrationRes, assRes, syncRes] = await Promise.all([
-        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
-        supabase.from("user_integrations").select("metadata").eq("user_id", user.id).eq("provider", "notion").single(),
-        supabase.from("assistants").select("id, name, widget_config").eq("user_id", user.id).order("created_at"),
-        supabase.from("notion_sync_configs").select("bot_id, selected_pages, selected_databases, last_synced_at, status, last_error").eq("user_id", user.id),
+      const [integrationRes, assRes, syncRes] = await Promise.all([
+        supabase.from("user_integrations").select("metadata").eq("user_id", effectiveUserId).eq("provider", "notion").single(),
+        supabase.from("assistants").select("id, name, widget_config").eq("user_id", effectiveUserId).order("created_at"),
+        supabase.from("notion_sync_configs").select("bot_id, selected_pages, selected_databases, last_synced_at, status, last_error").eq("user_id", effectiveUserId),
       ]);
-
-      setPlan((usageRes.data as any)?.plan_code ?? "starter");
 
       if (integrationRes.data?.metadata) {
         const meta = integrationRes.data.metadata as Record<string, any>;
@@ -1305,17 +1304,16 @@ function GenericSyncConfigPanel({
     (async () => {
       const supabase = getSupabaseBrowserClient();
       if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const meRes = await fetch("/api/workspace/me");
+      if (!meRes.ok) return;
+      const { effectiveUserId, planCode: pc } = await meRes.json();
+      setPlan(pc ?? "starter");
 
-      const [usageRes, integrationRes, assRes, syncRes] = await Promise.all([
-        supabase.rpc("get_user_usage", { p_user_id: user.id } as any).single(),
-        supabase.from("user_integrations").select("id").eq("user_id", user.id).eq("provider", providerKey).maybeSingle(),
-        supabase.from("assistants").select("id, name").eq("user_id", user.id).order("created_at"),
-        supabase.from(syncConfigsTable).select(`bot_id, ${selectedField}, last_synced_at, status, last_error`).eq("user_id", user.id),
+      const [integrationRes, assRes, syncRes] = await Promise.all([
+        supabase.from("user_integrations").select("id").eq("user_id", effectiveUserId).eq("provider", providerKey).maybeSingle(),
+        supabase.from("assistants").select("id, name").eq("user_id", effectiveUserId).order("created_at"),
+        supabase.from(syncConfigsTable).select(`bot_id, ${selectedField}, last_synced_at, status, last_error`).eq("user_id", effectiveUserId),
       ]);
-
-      setPlan((usageRes.data as any)?.plan_code ?? "starter");
 
       if (integrationRes.data) {
         setConnected(true);
@@ -1649,15 +1647,14 @@ export default function IntegrationsPage() {
   const [openConfig, setOpenConfig] = useState<string | null>(null);
 
   async function loadConnected() {
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
     const [intRes, keysRes] = await Promise.all([
-      supabase.from("user_integrations").select("provider").eq("user_id", user.id),
+      fetch("/api/integrations/connected"),
       fetch("/api/keys"),
     ]);
-    setConnectedProviders(new Set((intRes.data ?? []).map((r: { provider: string }) => r.provider)));
+    if (intRes.ok) {
+      const { providers } = await intRes.json();
+      setConnectedProviders(new Set(providers ?? []));
+    }
     if (keysRes.ok) {
       const { keys } = await keysRes.json();
       setHasApiKey((keys ?? []).length > 0);

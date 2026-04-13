@@ -38,7 +38,7 @@ const ROLE_OPTIONS = [
   { label: "E-Commerce Shopping", value: "ecommerce" },
 ];
 
-export function AssistantDetailClient({ assistant, sources, userId, imageSearchEnabled = false, featureFlags = {} }: any) {
+export function AssistantDetailClient({ assistant, sources, userId, imageSearchEnabled = false, featureFlags = {}, memberRole = "admin" }: any) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"preview" | "train" | "design" | "automate" | "install">("preview");
 
@@ -189,6 +189,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
   const [copied, setCopied] = useState(false);
   const [copiedBlock, setCopiedBlock] = useState<string | null>(null);
   const [selectedFramework, setSelectedFramework] = useState<"vanilla" | "nextjs" | "react" | "shopify">("vanilla");
+  const [relayTab, setRelayTab] = useState<"node" | "nextjs" | "python" | "php">("node");
 
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const embedCode = `<script
@@ -501,65 +502,116 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Sidebar Nav */}
-        <div className="lg:w-64 shrink-0 space-y-2">
-          <button
-            onClick={() => setActiveTab("preview")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "preview" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <Bot className="h-5 w-5" />
-            Playground Preview
-          </button>
-          <button
-            onClick={() => setActiveTab("train")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "train" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <RefreshCcw className="h-5 w-5" />
-            Train
-          </button>
-          <button
-            onClick={() => setActiveTab("design")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "design" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <Paintbrush className="h-5 w-5" />
-            Design
-          </button>
-          <Link
-            href={`/dashboard/assistants/${assistant.id}/overrides`}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-surface hover:text-white"
-          >
-            <ShieldCheck className="h-5 w-5" />
-            Response Rules
-          </Link>
-          <button
-            onClick={() => setActiveTab("automate")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "automate" ? "bg-violet-600/20 text-violet-300 border border-violet-500/30" : "text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <Zap className="h-5 w-5" />
-            Automate
-          </button>
-          <button
-            onClick={() => setActiveTab("install")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors border mt-4",
-              activeTab === "install" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-border text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <Code className="h-5 w-5" />
-            Install on Website
-          </button>
-        </div>
+        {(() => {
+          const canEdit = memberRole === "admin" || memberRole === "editor";
+          const isAdmin = memberRole === "admin";
+
+          function LockedTab({ icon, label }: { icon: React.ReactNode; label: string }) {
+            return (
+              <div className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 cursor-not-allowed select-none">
+                {icon}
+                {label}
+                <ArrowLeft className="h-3.5 w-3.5 ml-auto rotate-[135deg] text-slate-700" />
+              </div>
+            );
+          }
+
+          return (
+            <div className="lg:w-64 shrink-0 space-y-2">
+              {/* Preview — always accessible */}
+              <button
+                onClick={() => setActiveTab("preview")}
+                className={cn(
+                  "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                  activeTab === "preview" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
+                )}
+              >
+                <Bot className="h-5 w-5" />
+                Playground Preview
+              </button>
+
+              {/* Train — editors + admins */}
+              {canEdit ? (
+                <button
+                  onClick={() => setActiveTab("train")}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    activeTab === "train" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
+                  )}
+                >
+                  <RefreshCcw className="h-5 w-5" />
+                  Train
+                </button>
+              ) : (
+                <LockedTab icon={<RefreshCcw className="h-5 w-5" />} label="Train" />
+              )}
+
+              {/* Design — editors + admins */}
+              {canEdit ? (
+                <button
+                  onClick={() => setActiveTab("design")}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    activeTab === "design" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
+                  )}
+                >
+                  <Paintbrush className="h-5 w-5" />
+                  Design
+                </button>
+              ) : (
+                <LockedTab icon={<Paintbrush className="h-5 w-5" />} label="Design" />
+              )}
+
+              {/* Response Rules — editors + admins */}
+              {canEdit ? (
+                <Link
+                  href={`/dashboard/assistants/${assistant.id}/overrides`}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors text-slate-400 hover:bg-surface hover:text-white"
+                >
+                  <ShieldCheck className="h-5 w-5" />
+                  Response Rules
+                </Link>
+              ) : (
+                <LockedTab icon={<ShieldCheck className="h-5 w-5" />} label="Response Rules" />
+              )}
+
+              {/* Automate — editors + admins */}
+              {canEdit ? (
+                <button
+                  onClick={() => setActiveTab("automate")}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+                    activeTab === "automate" ? "bg-violet-600/20 text-violet-300 border border-violet-500/30" : "text-slate-400 hover:bg-surface hover:text-white"
+                  )}
+                >
+                  <Zap className="h-5 w-5" />
+                  Automate
+                </button>
+              ) : (
+                <LockedTab icon={<Zap className="h-5 w-5" />} label="Automate" />
+              )}
+
+              {/* Install — admin only */}
+              {isAdmin ? (
+                <button
+                  onClick={() => setActiveTab("install")}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors border mt-4",
+                    activeTab === "install" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-border text-slate-400 hover:bg-surface hover:text-white"
+                  )}
+                >
+                  <Code className="h-5 w-5" />
+                  Install on Website
+                </button>
+              ) : (
+                <div className="mt-4">
+                  <LockedTab icon={<Code className="h-5 w-5" />} label="Install on Website" />
+                  <p className="text-[10px] text-slate-600 px-4 mt-1">Only the workspace admin can install</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Content Area */}
         <div className="flex-1">
@@ -1359,6 +1411,197 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* Webhook Relay section */}
+              <div className="border-t border-border pt-6">
+                <div className="rounded-2xl border border-border bg-surface overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-start gap-3 p-5 border-b border-border">
+                    <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Webhook Relay <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary border border-primary/20">Advanced</span></h4>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Route all AI calls through your own server. The widget UI is <span className="text-white">identical</span> — only the chat endpoint changes. Ideal for strict CSP policies, compliance requirements, or when you want full server-side control.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 space-y-5">
+                    {/* Step 1 */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Step 1 — Add <code className="text-primary bg-primary/10 px-1 rounded normal-case">data-webhook-url</code> to your embed script</p>
+                      <div className="relative">
+                        <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto leading-relaxed">{`<script
+  src="${origin}/embed.js"
+  data-agent-id="${assistant.id}"
+  data-webhook-url="https://yourdomain.in/api/chat-relay"
+  async
+></script>`}</pre>
+                        <Button
+                          onClick={() => copyBlock("webhookscript", `<script\n  src="${origin}/embed.js"\n  data-agent-id="${assistant.id}"\n  data-webhook-url="https://yourdomain.in/api/chat-relay"\n  async\n></script>`)}
+                          variant="ghost"
+                          className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2"
+                        >
+                          {copiedBlock === "webhookscript" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                          <span className="ml-2 text-xs">{copiedBlock === "webhookscript" ? "Copied" : "Copy"}</span>
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500">Replace <code className="text-slate-300">https://yourdomain.in/api/chat-relay</code> with your own endpoint URL.</p>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Step 2 — Create the relay endpoint on your server</p>
+                      <p className="text-xs text-slate-500">The relay receives the message from the widget, forwards it to <code className="text-slate-300">/api/v1/chat</code> with your API key, and streams the response back. Copy the template for your stack:</p>
+
+                      {/* Framework tabs for relay code */}
+                      {(() => {
+                        const nodeCode = `// Express.js — POST /api/chat-relay
+const express = require('express');
+const app = express();
+app.use(express.json());
+
+app.post('/api/chat-relay', async (req, res) => {
+  const upstream = await fetch('${origin}/api/v1/chat', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(req.body),
+  });
+  res.setHeader('Content-Type', 'text/plain');
+  const reader = upstream.body.getReader();
+  const pump = async () => {
+    const { done, value } = await reader.read();
+    if (done) { res.end(); return; }
+    res.write(value);
+    return pump();
+  };
+  pump();
+});`;
+
+                        const nextCode = `// app/api/chat-relay/route.ts  (Next.js App Router)
+export async function POST(req: Request) {
+  const body = await req.json();
+  const upstream = await fetch('${origin}/api/v1/chat', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  return new Response(upstream.body, {
+    headers: { 'Content-Type': 'text/plain' },
+  });
+}`;
+
+                        const pythonCode = `# Flask — POST /api/chat-relay
+import requests
+from flask import Flask, request, Response, stream_with_context
+
+app = Flask(__name__)
+
+@app.route('/api/chat-relay', methods=['POST'])
+def chat_relay():
+    upstream = requests.post(
+        '${origin}/api/v1/chat',
+        json=request.json,
+        headers={'Authorization': 'Bearer YOUR_API_KEY'},
+        stream=True,
+    )
+    return Response(
+        stream_with_context(upstream.iter_content(chunk_size=None)),
+        content_type='text/plain',
+    )`;
+
+                        const phpCode = `<?php
+// POST /api/chat-relay
+header('Content-Type: text/plain');
+$body = file_get_contents('php://input');
+$ch = curl_init('${origin}/api/v1/chat');
+curl_setopt_array($ch, [
+  CURLOPT_POST => true,
+  CURLOPT_POSTFIELDS => $body,
+  CURLOPT_HTTPHEADER => [
+    'Authorization: Bearer YOUR_API_KEY',
+    'Content-Type: application/json',
+  ],
+  CURLOPT_WRITEFUNCTION => function($ch, $data) {
+    echo $data; flush();
+    return strlen($data);
+  },
+]);
+curl_exec($ch);
+curl_close($ch);`;
+
+                        const tabs = [
+                          { key: "node",   label: "Node.js",  code: nodeCode },
+                          { key: "nextjs", label: "Next.js",  code: nextCode },
+                          { key: "python", label: "Python",   code: pythonCode },
+                          { key: "php",    label: "PHP",      code: phpCode },
+                        ] as const;
+
+                        const active = tabs.find(t => t.key === relayTab) ?? tabs[0];
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex gap-2 flex-wrap">
+                              {tabs.map(t => (
+                                <button
+                                  key={t.key}
+                                  onClick={() => setRelayTab(t.key)}
+                                  className={cn(
+                                    "px-3 py-1 rounded-lg text-xs font-medium transition-all border",
+                                    relayTab === t.key
+                                      ? "bg-primary/15 border-primary/30 text-primary"
+                                      : "bg-background border-border text-slate-400 hover:text-white"
+                                  )}
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="relative">
+                              <pre className="bg-background border border-border rounded-xl p-4 text-sm text-slate-300 overflow-x-auto leading-relaxed max-h-72 overflow-y-auto">
+                                <code>{active.code}</code>
+                              </pre>
+                              <Button
+                                onClick={() => copyBlock(`relay-${relayTab}`, active.code)}
+                                variant="ghost"
+                                className="absolute top-2 right-2 bg-surface hover:bg-border text-white border border-border shadow-sm h-8 px-2"
+                              >
+                                {copiedBlock === `relay-${relayTab}` ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                                <span className="ml-2 text-xs">{copiedBlock === `relay-${relayTab}` ? "Copied" : "Copy"}</span>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Step 3 — Get your API key</p>
+                      <p className="text-xs text-slate-500">
+                        Replace <code className="text-slate-300">YOUR_API_KEY</code> in the relay code with a key from your API Keys page.
+                        Keys are prefixed <code className="text-slate-300">ask_live_</code> and never expire until you revoke them.
+                      </p>
+                      <Link
+                        href="/dashboard/settings?tab=api-keys"
+                        className="inline-flex items-center gap-2 text-xs text-primary hover:underline font-medium"
+                      >
+                        Go to API Keys →
+                      </Link>
+                    </div>
+
+                    {/* Info callout */}
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4 text-xs text-slate-400 leading-relaxed">
+                      <span className="text-emerald-400 font-medium">How it works:</span> The widget loads normally and looks identical to visitors. When they send a message, it POSTs to your relay endpoint instead of AskYourSite directly. Your relay forwards it to <code className="text-slate-300">/api/v1/chat</code> with your secret API key — which is never exposed to the browser. The streaming response is piped back and the widget renders it exactly as it always does.
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Universal info box */}
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex gap-3">

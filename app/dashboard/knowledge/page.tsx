@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Library, FileText, Layers, ExternalLink } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 async function getKnowledgeData(userId: string) {
   const supabase = getSupabaseAdminClient();
@@ -78,7 +79,10 @@ export default async function KnowledgePage() {
 
   if (!supabase || !user) redirect("/login");
 
-  const data = await getKnowledgeData(user.id);
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  const data = await getKnowledgeData(effectiveUserId);
 
   return (
     <div className="mx-auto max-w-6xl w-full animate-fade-up">

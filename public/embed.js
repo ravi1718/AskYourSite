@@ -4,7 +4,7 @@
   
   const initWidget = async () => {
     const agentId = scriptTag ? scriptTag.getAttribute('data-agent-id') : null;
-    
+
     if (!agentId) {
       console.error("AskYourSite: Missing data-agent-id attribute on the embed script.");
       return;
@@ -13,6 +13,12 @@
     // Configuration
     const scriptUrl = scriptTag && scriptTag.src ? new URL(scriptTag.src) : { origin: "https://askyoursite.in" };
     const API_BASE = scriptUrl.origin;
+
+    // Webhook relay support: if data-webhook-url is set, all chat messages go
+    // to the user's own server endpoint instead of directly to AskYourSite.
+    // The relay server calls /api/v1/chat with an API key and pipes the response back.
+    const WEBHOOK_URL = scriptTag ? scriptTag.getAttribute('data-webhook-url') : null;
+    const CHAT_ENDPOINT = WEBHOOK_URL || (API_BASE + '/api/chat');
 
     let widgetConfig = {
       primaryColor: '#3b82f6',
@@ -1352,7 +1358,7 @@
     document.getElementById('ays-chat-send').disabled = true;
 
     try {
-      const response = await fetch(API_BASE + '/api/chat', {
+      const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

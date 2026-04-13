@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getWorkspaceContext } from "@/lib/workspace";
 import AlertsList from "./alerts-list";
 
 const UNANSWERED_PATTERNS = [
@@ -56,7 +57,10 @@ export default async function AlertsPage() {
 
   if (!supabase || !user) redirect("/login");
 
-  const alerts = await getAllAlerts(user.id);
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
+  const alerts = await getAllAlerts(effectiveUserId);
 
   return (
     <div className="mx-auto max-w-4xl w-full animate-fade-up">

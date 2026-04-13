@@ -16,14 +16,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing FIRECRAWL_API_KEY" }, { status: 500 });
     }
 
-    // Determine page limit by plan
+    // Determine page limit by plan (use workspace owner's plan)
     let pageLimit = 50;
     const supabase = await getSupabaseServerClient();
     if (supabase) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: usageData } = await supabase
-          .rpc("get_user_usage", { p_user_id: user.id } as any)
+        const { getWorkspaceContext } = await import("@/lib/workspace");
+        const { getSupabaseAdminClient } = await import("@/lib/supabase/admin");
+        const workspace = await getWorkspaceContext();
+        const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+        const admin = getSupabaseAdminClient();
+        const { data: usageData } = await (admin ?? supabase)
+          .rpc("get_user_usage", { p_user_id: effectiveUserId } as any)
           .single();
         const planCode = (usageData as any)?.plan_code as string | undefined;
         if (planCode && PAGE_LIMITS[planCode]) pageLimit = PAGE_LIMITS[planCode];

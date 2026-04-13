@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getWorkspaceContext } from "@/lib/workspace";
 import type { CreateAssistantState } from "./state";
 
 function slugify(value: string) {
@@ -59,6 +60,15 @@ export async function createAssistantAction(
     return {
       success: false,
       message: "You must be signed in to create an assistant.",
+    };
+  }
+
+  // Team members cannot create personal assistants — they work within the admin's workspace.
+  const workspace = await getWorkspaceContext();
+  if (workspace?.isTeamMember) {
+    return {
+      success: false,
+      message: "Team members cannot create personal assistants. You are working within a shared workspace. Contact your workspace admin to create new assistants.",
     };
   }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getValidAccessToken } from "@/lib/integrations/token";
+import { getWorkspaceContext } from "@/lib/workspace";
 
 // GET /api/integrations/airtable/bases
 // Lists all Airtable bases and their tables accessible to the user.
@@ -11,13 +12,16 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const workspace = await getWorkspaceContext();
+  const effectiveUserId = workspace?.effectiveUserId ?? user.id;
+
   const admin = getSupabaseAdminClient();
   if (!admin) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
 
   const { data: integration } = await admin
     .from("user_integrations")
     .select("id, user_id, provider, access_token, refresh_token, token_expires_at, metadata")
-    .eq("user_id", user.id)
+    .eq("user_id", effectiveUserId)
     .eq("provider", "airtable")
     .single();
 
