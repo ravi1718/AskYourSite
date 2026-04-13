@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { Bot, BarChart2, Library, Settings, Users, Puzzle } from "lucide-react";
+import { Bot, BarChart2, Library, Settings, Users, Puzzle, Zap, BarChart3 } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { PageTransition } from "@/components/page-transition";
@@ -78,6 +78,14 @@ export default async function DashboardLayout({
             </Link>
           )}
 
+          <Link href="/dashboard/agent-logs" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+            <Zap className="h-4 w-4" />
+            Agent Logs
+          </Link>
+          <Link href="/dashboard/agent-performance" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+            <BarChart3 className="h-4 w-4" />
+            Performance
+          </Link>
           <Link href="/dashboard/integrations" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
             <Puzzle className="h-4 w-4" />
             Integrations

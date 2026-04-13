@@ -64,6 +64,17 @@ export async function GET(
 
     const widgetConfig = assistant.widget_config || {};
 
+    // Fetch active proactive triggers (only when agent mode is ON)
+    let proactiveTriggers: any[] = [];
+    if (widgetConfig.agentMode) {
+      const { data: triggers } = await supabase
+        .from('proactive_triggers')
+        .select('id, trigger_type, condition_value, url_pattern, message, cooldown_hours, is_active')
+        .eq('assistant_id', assistantId)
+        .eq('is_active', true);
+      proactiveTriggers = triggers || [];
+    }
+
     // Return the config merged with server-enforced feature flags
     return NextResponse.json({
       ...widgetConfig,
@@ -85,6 +96,8 @@ export async function GET(
       notification_enabled: !!(widgetConfig.notificationEnabled === true),
       notification_messages: [widgetConfig.notificationMessage1, widgetConfig.notificationMessage2].filter(Boolean),
       notification_delay: widgetConfig.notificationDelay ?? 4,
+      // Proactive triggers (passed to embed.js for client-side evaluation)
+      proactive_triggers: proactiveTriggers,
     }, {
       status: 200,
       headers: {

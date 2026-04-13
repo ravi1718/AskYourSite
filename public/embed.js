@@ -26,6 +26,8 @@
       if (configRes.ok) {
         const data = await configRes.json();
         widgetConfig = { ...widgetConfig, ...data };
+        // Expose triggers globally so the trigger engine (initialized later) can pick them up
+        if (data.proactive_triggers) window.__AYS_TRIGGERS__ = data.proactive_triggers;
       }
     } catch (err) {
       console.warn("AskYourSite: Failed to load widget config", err);
@@ -638,7 +640,118 @@
     return id;
   })();
 
-  // Visitor profile — saves topics from past sessions for personalized greetings
+  // Persistent visitor ID — survives session resets, ties all sessions to one identity
+  const _vidKey = 'ays_vid_' + agentId;
+  const visitorId = localStorage.getItem(_vidKey) || (() => {
+    const vid = 'v_' + crypto.randomUUID().replace(/-/g, '').substring(0, 16);
+    localStorage.setItem(_vidKey, vid);
+    return vid;
+  })();
+
+  // Ping the server with this visitor's page view (upserts visitor_profiles)
+  const _pingVisitor = () => {
+    try {
+      fetch(API_BASE + '/api/visitors/' + agentId + '/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visitor_id: visitorId, page_url: window.location.href }),
+      }).catch(() => {});
+    } catch {}
+  };
+  _pingVisitor();
+
+  // Proactive trigger engine — evaluates time/scroll/behavior rules
+  let _timeOnPage = 0;
+  let _maxScroll = 0;
+  let _lastActivity = Date.now();
+  const _firedTriggers = new Set();
+  let _proactiveTriggers = [];
+
+  // Load triggers from widget config (injected by /api/widget/[id])
+  if (window.__AYS_TRIGGERS__) _proactiveTriggers = window.__AYS_TRIGGERS__;
+
+  const _shouldFireTrigger = (trigger) => {
+    if (!trigger.is_active) return false;
+    if (_firedTriggers.has(trigger.id)) return false;
+    // Check URL pattern if specified
+    if (trigger.url_pattern && !window.location.pathname.includes(trigger.url_pattern)) return false;
+    const cv = trigger.condition_value || {};
+    switch (trigger.trigger_type) {
+      case 'time_on_page': return _timeOnPage >= (cv.seconds || 60);
+      case 'scroll_depth':  return _maxScroll >= (cv.percent || 80);
+      case 'inactivity':    return (Date.now() - _lastActivity) >= ((cv.seconds || 90) * 1000);
+      case 'exit_intent':   return false; // handled by mouseleave
+      case 'return_visit':  return parseInt(localStorage.getItem('ays_visits_' + agentId) || '1') >= (cv.visit_count || 2);
+      case 'page_contains': return cv.text ? document.body.innerText.toLowerCase().includes(cv.text.toLowerCase()) : false;
+      default: return false;
+    }
+  };
+
+  // Track visit count for return_visit trigger
+  const _visitCount = parseInt(localStorage.getItem('ays_visits_' + agentId) || '0') + 1;
+  localStorage.setItem('ays_visits_' + agentId, String(_visitCount));
+
+  // Scroll + activity tracking
+  document.addEventListener('scroll', () => {
+    const scrollPct = (window.scrollY / Math.max(1, document.body.scrollHeight - window.innerHeight)) * 100;
+    _maxScroll = Math.max(_maxScroll, scrollPct);
+    _lastActivity = Date.now();
+  }, { passive: true });
+  document.addEventListener('mousemove', () => { _lastActivity = Date.now(); }, { passive: true });
+  document.addEventListener('keydown', () => { _lastActivity = Date.now(); }, { passive: true });
+
+  // Notify server that a trigger fired (increments fire_count) — fire-and-forget
+  const _recordTriggerFire = (triggerId) => {
+    fetch(API_BASE + '/api/assistants/' + agentId + '/triggers/' + triggerId, {
+      method: 'POST',
+    }).catch(() => {});
+  };
+
+  // Exit intent trigger
+  document.addEventListener('mouseleave', (e) => {
+    if (e.clientY > 10) return;
+    const exitTrigger = _proactiveTriggers.find(t => t.trigger_type === 'exit_intent' && t.is_active && !_firedTriggers.has(t.id));
+    if (exitTrigger) {
+      _firedTriggers.add(exitTrigger.id);
+      _recordTriggerFire(exitTrigger.id);
+      _openChatProactively(exitTrigger.message);
+    }
+  });
+
+  // Polling evaluation (every 5 seconds)
+  setInterval(() => {
+    _timeOnPage += 5;
+    for (const trigger of _proactiveTriggers) {
+      if (_shouldFireTrigger(trigger)) {
+        _firedTriggers.add(trigger.id);
+        _recordTriggerFire(trigger.id);
+        _openChatProactively(trigger.message);
+        break; // fire one trigger at a time
+      }
+    }
+  }, 5000);
+
+  const _openChatProactively = async (message) => {
+    if (!message) return;
+    // Open widget if not already open — windowEl uses .ays-open class, not display style
+    if (!isOpen) {
+      isOpen = true;
+      windowEl.classList.add('ays-open');
+      notifContainer.innerHTML = '';
+    }
+    // Await history so its innerHTML reset doesn't wipe our proactive message
+    await loadHistory();
+    // Inject the agent's proactive message (no user turn needed)
+    const el = addMessage('model', '');
+    if (window.marked) {
+      el.innerHTML = window.marked.parse(message);
+    } else {
+      el.textContent = message;
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  };
+
+  // Legacy visitor profile (kept for backward compat)
   const _visitorKey = 'ays_visitor_' + agentId;
   const getVisitorContext = () => {
     try {
@@ -1010,12 +1123,14 @@
     const result = { text: raw, suggestions: [], products: [], actions: [], booking: null };
 
     // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
-    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__', '__AYS_BOOKING__'];
+    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__', '__AYS_BOOKING__', '__AYS_AGENT_ACTION__'];
     const indices = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
     if (!indices.length) return result;
 
     const splitAt = Math.min(...indices);
     result.text = raw.substring(0, splitAt);
+    // Strip any agent action block that may appear before other markers (server-side safety net)
+    result.text = result.text.replace(/__AYS_AGENT_ACTION__[\s\S]*?__\/AYS_AGENT_ACTION__/g, '').trim();
     const tail = raw.substring(splitAt);
 
     const sugsIdx = tail.indexOf('__AYS_SUGGESTIONS__');
@@ -1244,6 +1359,7 @@
           messages: conversation,
           assistantId: agentId,
           sessionId: chatSessionId,
+          visitorId: visitorId,
           ...(currentImageBase64 && {
             imageBase64: currentImageBase64,
             imageMimeType: currentImageMimeType,

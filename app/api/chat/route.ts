@@ -3,6 +3,8 @@ import { GoogleGenAI } from "@google/genai";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { detectBuyingIntent, detectUnanswered, detectFrustration, detectUrgency, normalizeQuestion, hashQuestion } from "@/lib/slack/detect";
 import { dispatchEvent } from "@/lib/events/dispatch";
+import { detectIndustry, INDUSTRY_GOALS } from "@/lib/agent/industry-detect";
+import { parseAgentAction, stripAgentAction, executeAgentAction } from "@/lib/agent/executor";
 
 // In-memory rate limiter: 10 requests per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { messages, assistantId, sessionId, imageBase64, imageMimeType, visitorContext } = await req.json();
+    const { messages, assistantId, sessionId, imageBase64, imageMimeType, visitorContext, visitorId } = await req.json();
     const isPreview = assistantId === "preview";
 
     if (!messages || !assistantId || !Array.isArray(messages)) {
@@ -257,14 +259,105 @@ export async function POST(req: Request) {
     let assistantData: any = null;
     let agentConfig = { checkoutUrl: "", orderTrackingUrl: "", supportUrl: "", orderWebhookUrl: "" };
     let matchedOverride: { trigger_phrase: string; override_response: string } | null = null;
+    let configuredWebhooks: { action: string; name: string }[] = [];
 
     if (supabase) {
       const { data } = await supabase
         .from("assistants")
-        .select("widget_config, tone, user_id, name")
+        .select("widget_config, tone, user_id, name, business_summary, website_url")
         .eq("id", assistantId)
         .single();
       assistantData = data;
+
+      // Fetch configured agent webhooks (only when agentMode is ON)
+      if (!isPreview && data?.widget_config?.agentMode) {
+        const { data: hooks } = await supabase
+          .from("agent_webhooks")
+          .select("action, name")
+          .eq("assistant_id", assistantId)
+          .eq("is_active", true);
+        configuredWebhooks = hooks || [];
+      }
+    }
+
+    // Load visitor memory (only in agent mode, non-preview, when visitor_id provided)
+    let visitorMemoryPrompt = "";
+    const adminDb = getSupabaseAdminClient();
+    if (!isPreview && visitorId && adminDb) {
+      const { data: vp } = await adminDb
+        .from("visitor_profiles")
+        .select("email, name, total_sessions, pages_visited, questions_asked, last_action, sentiment_avg")
+        .eq("visitor_id", visitorId)
+        .eq("assistant_id", assistantId)
+        .maybeSingle();
+
+      if (vp) {
+        const isReturning = vp.total_sessions > 1;
+        visitorMemoryPrompt = `
+VISITOR MEMORY:
+- Sessions: ${vp.total_sessions} | Returning: ${isReturning ? "YES" : "NO"}
+- Email on file: ${vp.email || "not captured"}
+- Name: ${vp.name || "unknown"}
+- Last agent action taken: ${vp.last_action || "none"}
+- Pages they've visited: ${(vp.pages_visited || []).slice(-5).join(", ") || "unknown"}
+- Previously asked: ${(vp.questions_asked || []).slice(-3).map((q: string) => `"${q}"`).join(", ") || "nothing on record"}
+- Average frustration score: ${vp.sentiment_avg ? `${vp.sentiment_avg.toFixed(1)}/5` : "not measured"}
+${isReturning ? "This is a RETURNING visitor — acknowledge you remember them warmly and reference their past context." : ""}`;
+
+        // Upsert: add this question to their history, update last_seen
+        if (lastUserMessage) {
+          const updatedQuestions = [...(vp.questions_asked || []), lastUserMessage].slice(-10);
+          adminDb.from("visitor_profiles").update({
+            last_seen: new Date().toISOString(),
+            questions_asked: updatedQuestions,
+            total_sessions: vp.total_sessions, // already counted by ping
+          })
+          .eq("visitor_id", visitorId)
+          .eq("assistant_id", assistantId)
+          .then(() => {});
+        }
+      } else if (lastUserMessage) {
+        // First time visitor — create profile
+        adminDb.from("visitor_profiles").upsert({
+          visitor_id: visitorId,
+          assistant_id: assistantId,
+          questions_asked: [lastUserMessage],
+          total_sessions: 1,
+        }, { onConflict: "visitor_id,assistant_id" }).then(() => {});
+      }
+    }
+
+    // Sentiment scoring (only in agent mode, non-preview, when there are prior messages)
+    let sentimentScore = 1;
+    if (!isPreview && assistantData?.widget_config?.agentMode && messages.length > 1 && lastUserMessage && ai) {
+      try {
+        const sentimentResult = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: [{ role: "user", parts: [{ text: `Rate the frustration level in this message 1-5 (1=calm, 5=very frustrated). Reply with ONLY the single digit number.\nMessage: "${lastUserMessage.substring(0, 300)}"` }] }],
+          config: { temperature: 0, maxOutputTokens: 5 },
+        });
+        const parsed = parseInt(sentimentResult.text?.trim() || "1");
+        if (!isNaN(parsed)) sentimentScore = Math.min(5, Math.max(1, parsed));
+
+        // Update rolling sentiment average in visitor profile
+        if (visitorId && adminDb) {
+          const { data: vp2 } = await adminDb
+            .from("visitor_profiles")
+            .select("sentiment_avg, total_sessions")
+            .eq("visitor_id", visitorId)
+            .eq("assistant_id", assistantId)
+            .maybeSingle();
+          if (vp2) {
+            const prevAvg = vp2.sentiment_avg || sentimentScore;
+            const newAvg = (prevAvg + sentimentScore) / 2;
+            adminDb.from("visitor_profiles").update({ sentiment_avg: newAvg })
+              .eq("visitor_id", visitorId).eq("assistant_id", assistantId).then(() => {});
+          }
+        }
+      } catch { /* sentiment scoring never blocks chat */ }
+    }
+
+    if (supabase) {
 
       if (assistantData?.widget_config?.systemPrompt) {
         customSystemPrompt = assistantData.widget_config.systemPrompt;
@@ -499,8 +592,69 @@ For help, email support@askyoursite.in or use the chat widget on the site.
     // Prepare system instruction with context
     // Build action markers the server will inject based on AI response intent detection
     const hasActionUrls = agentConfig.checkoutUrl || agentConfig.orderTrackingUrl || agentConfig.supportUrl;
+    const wc2 = assistantData?.widget_config || {};
+    const isAgentMode = !isPreview && wc2.agentMode === true;
 
-    const agentBehavior = assistantId !== "preview" && hasActionUrls ? `
+    // Industry detection for agentic mode
+    const industry = isAgentMode
+      ? (wc2.industry && wc2.industry !== 'auto'
+          ? wc2.industry
+          : detectIndustry(assistantData?.business_summary || '', assistantData?.website_url || ''))
+      : 'general';
+
+    const sentimentInstruction = sentimentScore >= 4
+      ? `\nCRITICAL: This visitor is highly frustrated (score: ${sentimentScore}/5). Immediately acknowledge their frustration with empathy. Offer to escalate to a human specialist. Do NOT give generic answers. Trigger assign_human_agent action.`
+      : sentimentScore >= 3
+      ? `\nNOTE: Visitor shows some frustration (score: ${sentimentScore}/5). Be extra patient, supportive, and concrete in your help.`
+      : '';
+
+    // agentInstructions is the new unified field; fall back to legacy fields for backward compat
+    const agentInstructionsText = wc2.agentInstructions
+      || [wc2.agentGoal, wc2.agentPersona, wc2.agentRestrictions].filter(Boolean).join('\n')
+      || '';
+    const agentInstructionsBlock = agentInstructionsText ? `\nAGENT INSTRUCTIONS:\n${agentInstructionsText}` : '';
+
+    const agentBehavior = isAgentMode ? `
+
+---
+AGENTIC MODE: ENABLED
+INDUSTRY HINT: ${industry.toUpperCase()} (auto-detected)
+${agentInstructionsBlock}
+${INDUSTRY_GOALS[industry as keyof typeof INDUSTRY_GOALS] || INDUSTRY_GOALS.general}
+${visitorMemoryPrompt}
+${sentimentInstruction}
+
+INTENT CLASSIFICATION:
+Classify EVERY user message as one of:
+- INFORMATIONAL  → exploring, learning
+- TRANSACTIONAL  → ready to buy/book/sign up
+- NAVIGATIONAL   → looking for specific page/feature
+- PROBLEM        → stuck, frustrated, confused
+- HIGH_INTENT    → strong buying/decision signal (price questions, "I want to...", "how do I start")
+
+CONFIGURED WEBHOOK ACTIONS:
+${configuredWebhooks.length > 0
+  ? configuredWebhooks.map(w => `- ${w.action}: "${w.name}"`).join('\n')
+  : 'No webhooks configured yet — focus on guiding the conversation toward the user\'s goal.'}
+
+AGENTIC BEHAVIOR RULES:
+1. UNDERSTAND: Deeply analyze user's real intent
+2. PLAN: What action creates the most business value right now?
+3. ACT: If action is needed, append the action JSON AFTER your response text
+4. ADAPT: Every response should move the user closer to their goal — never dead-end
+
+WHEN TO TRIGGER ACTIONS:
+- HIGH_INTENT → ALWAYS trigger capture_lead or book_demo
+- PROBLEM (stuck/frustrated after 2+ turns) → trigger assign_human_agent
+- TRANSACTIONAL → trigger recommend_product or trigger_discount (if hesitating on price)
+- After purchase/booking signal → trigger update_crm + track_event
+- Sentiment score 4+ → trigger assign_human_agent
+
+ACTION FORMAT (append after your response text when an action is needed):
+__AYS_AGENT_ACTION__{"action":"capture_lead","reason":"User asked about pricing with purchase intent","data":{"user_intent":"purchase","user_message":"${(lastUserMessage || '').replace(/"/g, "'")}","priority":"high"}}__/AYS_AGENT_ACTION__
+
+CRITICAL: The action JSON is parsed server-side and NEVER shown to the user. Your visible response must be natural conversation only.
+---` : assistantId !== "preview" && hasActionUrls ? `
 
 AGENTIC BEHAVIOR — detect user intent and append the relevant action markers at the end of your response.
 Product cards and suggestion chips are handled automatically by the system — do NOT output __AYS_SUGGESTIONS__ or __AYS_PRODUCTS__.
@@ -572,14 +726,27 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
+        // Holds the parsed agent action so the finally block can fire it without re-parsing
+        let pendingAgentAction: import("@/lib/agent/executor").ActionPayload | null = null;
         try {
-          // 1. Stream the main answer from Gemini
+          // 1. Collect full Gemini response before streaming to client.
+          //    This lets us strip __AYS_AGENT_ACTION__ before it ever reaches the browser.
           for await (const chunk of responseStream) {
-            if (chunk.text) {
-              fullAssistantResponse += chunk.text;
-              controller.enqueue(encoder.encode(chunk.text));
+            if (chunk.text) fullAssistantResponse += chunk.text;
+          }
+
+          // Strip agent action marker before streaming — prevents marker leaking into the widget
+          if (isAgentMode) {
+            pendingAgentAction = parseAgentAction(fullAssistantResponse);
+            if (pendingAgentAction) {
+              pendingAgentAction.data.session_id = chatSessionId;
+              pendingAgentAction.data.assistant_id = assistantId;
+              fullAssistantResponse = stripAgentAction(fullAssistantResponse);
             }
           }
+
+          // Stream the clean response to the client
+          controller.enqueue(encoder.encode(fullAssistantResponse));
 
           // 2. Server-side marker injection — guaranteed, not AI-dependent
           let suffix = "";
@@ -668,6 +835,11 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
           controller.enqueue(encoder.encode("\n[Error streaming response]"));
         } finally {
           controller.close();
+
+          // Fire agent action (already parsed and stripped before streaming)
+          if (pendingAgentAction) {
+            executeAgentAction(pendingAgentAction, assistantId, chatSessionId);
+          }
 
           // Log clean response to chat_messages (strip all __AYS_* markers)
           const cleanResponse = fullAssistantResponse.replace(/__AYS_\w+__[\s\S]*/g, "").trim();

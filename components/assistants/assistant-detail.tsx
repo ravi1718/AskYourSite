@@ -3,7 +3,9 @@
 import { useState, useRef, useCallback } from "react";
 import { AYS_MARKER, parseMarkers, type BookingPayload } from "@/lib/chat/parse-markers";
 import ReactMarkdown from "react-markdown";
-import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck } from "lucide-react";
+import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck, Zap, GitBranch } from "lucide-react";
+import { AgentTab } from "./agent-tab";
+import { WorkflowTab } from "./workflow-tab";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Cropper from "react-easy-crop";
@@ -38,7 +40,7 @@ const ROLE_OPTIONS = [
 
 export function AssistantDetailClient({ assistant, sources, userId, imageSearchEnabled = false, featureFlags = {} }: any) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"settings" | "data" | "preview" | "embed" | "appearance">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "train" | "design" | "automate" | "install">("preview");
 
   // Widget config state
   const defaultConfig = {
@@ -511,34 +513,24 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
             Playground Preview
           </button>
           <button
-            onClick={() => setActiveTab("data")}
+            onClick={() => setActiveTab("train")}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "data" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
+              activeTab === "train" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
             )}
           >
             <RefreshCcw className="h-5 w-5" />
-            Live Data Training
+            Train
           </button>
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => setActiveTab("design")}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "settings" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
-            )}
-          >
-            <Settings className="h-5 w-5" />
-            General Settings
-          </button>
-          <button
-            onClick={() => setActiveTab("appearance")}
-            className={cn(
-              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
-              activeTab === "appearance" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
+              activeTab === "design" ? "bg-primary text-white shadow-glow" : "text-slate-400 hover:bg-surface hover:text-white"
             )}
           >
             <Paintbrush className="h-5 w-5" />
-            Edit Appearance
+            Design
           </button>
           <Link
             href={`/dashboard/assistants/${assistant.id}/overrides`}
@@ -548,10 +540,20 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
             Response Rules
           </Link>
           <button
-            onClick={() => setActiveTab("embed")}
+            onClick={() => setActiveTab("automate")}
+            className={cn(
+              "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+              activeTab === "automate" ? "bg-violet-600/20 text-violet-300 border border-violet-500/30" : "text-slate-400 hover:bg-surface hover:text-white"
+            )}
+          >
+            <Zap className="h-5 w-5" />
+            Automate
+          </button>
+          <button
+            onClick={() => setActiveTab("install")}
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors border mt-4",
-              activeTab === "embed" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-border text-slate-400 hover:bg-surface hover:text-white"
+              activeTab === "install" ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : "border-border text-slate-400 hover:bg-surface hover:text-white"
             )}
           >
             <Code className="h-5 w-5" />
@@ -719,7 +721,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
             </div>
           )}
 
-          {activeTab === "data" && (
+          {activeTab === "train" && (
             <div className="animate-fade-up">
               <div className="mb-6">
                 <h2 className="text-xl font-semibold text-white">Live Data Training</h2>
@@ -857,38 +859,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
             </div>
           )}
 
-          {activeTab === "settings" && (
-            <div className="animate-fade-up">
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-white">General Settings</h2>
-                <p className="text-sm text-slate-400">Manage basic information about this agent.</p>
-              </div>
-
-              <div className="bg-surface border border-border rounded-2xl p-6 shadow-card space-y-6">
-                <div>
-                  <label className="text-sm text-slate-300 block mb-2 font-medium">Assistant Name</label>
-                  <input
-                    defaultValue={assistant.name}
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 shadow-inner"
-                    readOnly
-                  />
-                  <p className="text-xs text-slate-500 mt-2">To rename agents, please use the global settings page.</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm text-slate-300 block mb-2 font-medium">Business Context</label>
-                  <textarea
-                    defaultValue={assistant.business_summary}
-                    rows={4}
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none shadow-inner"
-                    readOnly
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "appearance" && (
+          {activeTab === "design" && (
             <div className="animate-fade-up">
               <div className="mb-6 flex items-center justify-between">
                 <div>
@@ -1121,23 +1092,6 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                     )}
                   </div>
 
-                  <div className="border-t border-slate-800" />
-
-                  {/* Agent URLs */}
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-widest text-slate-600">Agent URLs <span className="normal-case text-slate-700 text-[9px]">(advanced)</span></p>
-                    {[
-                      { key: "checkoutUrl", label: "Checkout URL", placeholder: "https://yourstore.com/checkout" },
-                      { key: "orderTrackingUrl", label: "Order Tracking URL", placeholder: "https://yourstore.com/track-order" },
-                      { key: "supportUrl", label: "Support URL", placeholder: "https://yourstore.com/support" },
-                      { key: "orderWebhookUrl", label: "Order Webhook", placeholder: "https://yourapi.com/orders/lookup" },
-                    ].map(({ key, label, placeholder }) => (
-                      <div key={key}>
-                        <label className="text-[10px] text-slate-500 block mb-1">{label}</label>
-                        <input type="url" value={widgetConfig[key] || ""} onChange={(e) => updateConfig(key, e.target.value)} className="w-full bg-background border border-border rounded-lg px-3 py-2 text-white text-xs outline-none focus:border-primary/50" placeholder={placeholder} />
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
               </div>
@@ -1145,7 +1099,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
           )}
 
 
-          {activeTab === "embed" && (
+          {activeTab === "install" && (
             <div className="animate-fade-up space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-white">Install on your website</h2>
@@ -1413,6 +1367,33 @@ export default function App() {
                   <h4 className="text-sm font-semibold text-white">Works everywhere</h4>
                   <p className="text-sm text-slate-400 mt-1">The same agent ID works across all platforms. Your widget configuration — colors, welcome message, lead capture — is fetched automatically. No extra setup needed.</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "automate" && (
+            <div className="animate-fade-up space-y-10">
+              <div>
+                <h2 className="text-xl font-semibold text-white">Automate</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  Configure your agent's behavior, proactive triggers, webhooks, and multi-step workflows — everything your agent does autonomously in one place.
+                </p>
+              </div>
+              <AgentTab
+                assistantId={assistant.id}
+                widgetConfig={widgetConfig}
+                onConfigChange={(key, value) => setWidgetConfig(prev => ({ ...prev, [key]: value }))}
+                onSave={() => handleSaveAppearance(99)}
+                saving={savingSection === 99}
+              />
+              <div className="border-t border-border pt-8">
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-white">Workflows</h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Build multi-step automation sequences that run automatically after your agent fires an action — emails, webhooks, and timed delays.
+                  </p>
+                </div>
+                <WorkflowTab assistantId={assistant.id} />
               </div>
             </div>
           )}
