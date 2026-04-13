@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import Link from "next/link";
 
 type InviteState = "loading" | "ready" | "accepted" | "error" | "expired" | "wrong_email";
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");
@@ -63,6 +63,84 @@ export default function AcceptInvitePage() {
   }
 
   return (
+    <div className="bg-surface border border-border rounded-2xl p-8 shadow-card text-center space-y-5">
+
+      {state === "loading" && (
+        <>
+          <Loader2 className="h-10 w-10 text-primary animate-spin mx-auto" />
+          <p className="text-slate-400 text-sm">Validating invitation…</p>
+        </>
+      )}
+
+      {state === "ready" && (
+        <>
+          <div className="flex items-center justify-center h-14 w-14 rounded-full bg-primary/10 border border-primary/20 mx-auto">
+            <Users className="h-6 w-6 text-primary" />
+          </div>
+          <h1 className="text-xl font-semibold text-white">You've been invited!</h1>
+          <p className="text-sm text-slate-400">
+            You've been invited to collaborate on an AskYourSite workspace.
+            Click below to accept and join the team.
+          </p>
+          <p className="text-xs text-slate-500">
+            You'll need to be signed in (or create an account) with the email address this invitation was sent to.
+          </p>
+          <Button
+            onClick={handleAccept}
+            disabled={accepting}
+            className="w-full bg-primary text-white hover:bg-blue-500 gap-2"
+          >
+            {accepting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Accepting…</>
+            ) : (
+              "Accept Invitation →"
+            )}
+          </Button>
+        </>
+      )}
+
+      {state === "accepted" && (
+        <>
+          <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto" />
+          <h1 className="text-xl font-semibold text-white">Welcome to the team!</h1>
+          <p className="text-sm text-slate-400">
+            You've joined the workspace. Taking you to the dashboard…
+          </p>
+        </>
+      )}
+
+      {state === "expired" && (
+        <>
+          <XCircle className="h-12 w-12 text-amber-400 mx-auto" />
+          <h1 className="text-xl font-semibold text-white">Invitation expired</h1>
+          <p className="text-sm text-slate-400">{message}</p>
+        </>
+      )}
+
+      {state === "wrong_email" && (
+        <>
+          <XCircle className="h-12 w-12 text-red-400 mx-auto" />
+          <h1 className="text-xl font-semibold text-white">Wrong account</h1>
+          <p className="text-sm text-slate-400">{message}</p>
+          <Link href="/login" className="inline-block text-sm text-primary hover:underline">
+            Sign in with a different account →
+          </Link>
+        </>
+      )}
+
+      {state === "error" && (
+        <>
+          <XCircle className="h-12 w-12 text-red-400 mx-auto" />
+          <h1 className="text-xl font-semibold text-white">Invalid invitation</h1>
+          <p className="text-sm text-slate-400">{message}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Logo */}
@@ -72,79 +150,16 @@ export default function AcceptInvitePage() {
           </Link>
         </div>
 
-        <div className="bg-surface border border-border rounded-2xl p-8 shadow-card text-center space-y-5">
-
-          {state === "loading" && (
-            <>
+        <Suspense
+          fallback={
+            <div className="bg-surface border border-border rounded-2xl p-8 shadow-card text-center">
               <Loader2 className="h-10 w-10 text-primary animate-spin mx-auto" />
-              <p className="text-slate-400 text-sm">Validating invitation…</p>
-            </>
-          )}
-
-          {state === "ready" && (
-            <>
-              <div className="flex items-center justify-center h-14 w-14 rounded-full bg-primary/10 border border-primary/20 mx-auto">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-xl font-semibold text-white">You've been invited!</h1>
-              <p className="text-sm text-slate-400">
-                You've been invited to collaborate on an AskYourSite workspace.
-                Click below to accept and join the team.
-              </p>
-              <p className="text-xs text-slate-500">
-                You'll need to be signed in (or create an account) with the email address this invitation was sent to.
-              </p>
-              <Button
-                onClick={handleAccept}
-                disabled={accepting}
-                className="w-full bg-primary text-white hover:bg-blue-500 gap-2"
-              >
-                {accepting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Accepting…</>
-                ) : (
-                  "Accept Invitation →"
-                )}
-              </Button>
-            </>
-          )}
-
-          {state === "accepted" && (
-            <>
-              <CheckCircle2 className="h-12 w-12 text-emerald-400 mx-auto" />
-              <h1 className="text-xl font-semibold text-white">Welcome to the team!</h1>
-              <p className="text-sm text-slate-400">
-                You've joined the workspace. Taking you to the dashboard…
-              </p>
-            </>
-          )}
-
-          {state === "expired" && (
-            <>
-              <XCircle className="h-12 w-12 text-amber-400 mx-auto" />
-              <h1 className="text-xl font-semibold text-white">Invitation expired</h1>
-              <p className="text-sm text-slate-400">{message}</p>
-            </>
-          )}
-
-          {state === "wrong_email" && (
-            <>
-              <XCircle className="h-12 w-12 text-red-400 mx-auto" />
-              <h1 className="text-xl font-semibold text-white">Wrong account</h1>
-              <p className="text-sm text-slate-400">{message}</p>
-              <Link href="/login" className="inline-block text-sm text-primary hover:underline">
-                Sign in with a different account →
-              </Link>
-            </>
-          )}
-
-          {state === "error" && (
-            <>
-              <XCircle className="h-12 w-12 text-red-400 mx-auto" />
-              <h1 className="text-xl font-semibold text-white">Invalid invitation</h1>
-              <p className="text-sm text-slate-400">{message}</p>
-            </>
-          )}
-        </div>
+              <p className="text-slate-400 text-sm mt-4">Loading…</p>
+            </div>
+          }
+        >
+          <AcceptInviteContent />
+        </Suspense>
       </div>
     </div>
   );
