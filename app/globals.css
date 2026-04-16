@@ -4,21 +4,25 @@
 
 :root {
   color-scheme: dark;
-  --page-bg: #0A0A0A;
-  --page-fg: #F8FAFC;
-  --panel-bg: rgba(17, 17, 17, 0.85); /* #111111 with opacity */
-  --panel-border: #1A1A1A;
+  --page-bg: #000000;
+  --page-fg: #FAFAFA;
+  --panel-bg: rgba(10, 10, 10, 0.95);
+  --panel-border: #1C1C1C;
   --accent-blue: #3b82f6;
-  --accent-violet: #8b5cf6;
+  --accent: #00D9FF;
+  --accent-dim: rgba(0, 217, 255, 0.12);
+  --accent-glow: rgba(0, 217, 255, 0.25);
+  --fg-muted: #888888;
+  --fg-dim: #444444;
 }
 
 /* Force dark mode */
 .light, .dark {
   color-scheme: dark;
-  --page-bg: #0A0A0A;
-  --page-fg: #F8FAFC;
-  --panel-bg: rgba(17, 17, 17, 0.85);
-  --panel-border: #1A1A1A;
+  --page-bg: #000000;
+  --page-fg: #FAFAFA;
+  --panel-bg: rgba(10, 10, 10, 0.95);
+  --panel-border: #1C1C1C;
 }
 
 html {
@@ -28,11 +32,7 @@ html {
 
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(59, 130, 246, 0.08), transparent 40%),
-    radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.08), transparent 40%),
-    var(--page-bg);
-  background-attachment: fixed;
+  background: #000000;
   color: var(--page-fg);
   font-family: var(--font-geist-sans), sans-serif;
   transition: background-color 0.35s ease, color 0.25s ease;
@@ -200,17 +200,17 @@ textarea {
 }
 
 .glass-card-hover:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 8px 40px rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(0, 217, 255, 0.25);
+  box-shadow: 0 8px 40px rgba(0, 217, 255, 0.08);
 }
 
 /* ========================================
    DOT GRID BACKGROUND
    ======================================== */
 .dot-grid {
-  background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-image: radial-gradient(rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
 /* ========================================

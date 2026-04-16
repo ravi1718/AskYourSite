@@ -1,326 +1,465 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Palette, Code2, BarChart3 } from "lucide-react";
+import { useInView } from "react-intersection-observer";
 
-/* ─── Feature steps ─────────────────────────────────────── */
+/* ─── Terminal animation component ─────────────────────────── */
+function TerminalPanel() {
+  const [lineIdx, setLineIdx] = useState(0);
+  const lines = [
+    { text: "$ scanning https://yoursite.com", color: "#888" },
+    { text: "  ✓ /about              1,240 tokens", color: "#4ade80" },
+    { text: "  ✓ /pricing              890 tokens", color: "#4ade80" },
+    { text: "  ✓ /docs/getting-started  3,100 tokens", color: "#4ade80" },
+    { text: "  ✓ /blog/update          2,400 tokens", color: "#4ade80" },
+    { text: "  → Embedding 47 pages...", color: "#00D9FF" },
+    { text: "  ✓ Training complete in 38s", color: "#4ade80" },
+    { text: "", color: "" },
+    { text: "  AI agent is ready.", color: "#00D9FF" },
+  ];
+
+  useEffect(() => {
+    if (lineIdx >= lines.length) return;
+    const t = setTimeout(() => setLineIdx((i) => i + 1), lineIdx === 0 ? 200 : 320);
+    return () => clearTimeout(t);
+  }, [lineIdx]);
+
+  return (
+    <div className="h-full rounded-2xl border border-[#1C1C1C] bg-[#050505] overflow-hidden font-mono">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-[#1C1C1C]">
+        <div className="h-2.5 w-2.5 rounded-full bg-[#1C1C1C]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#1C1C1C]" />
+        <div className="h-2.5 w-2.5 rounded-full bg-[#1C1C1C]" />
+        <span className="ml-2 text-[11px] text-[#444]">askyoursite — train</span>
+      </div>
+      <div className="p-4 space-y-1.5">
+        {lines.slice(0, lineIdx).map((line, i) => (
+          <motion.p key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="text-[12px] leading-relaxed" style={{ color: line.color || "#888" }}>
+            {line.text}
+          </motion.p>
+        ))}
+        {lineIdx < lines.length && (
+          <span className="inline-block h-4 w-2 bg-[#00D9FF] animate-blink opacity-80" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Agent Mode panel ───────────────────────────────────── */
+function AgentPanel() {
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    const timings = [400, 1000, 2000, 3000, 4200];
+    const ts = timings.map((t, i) => setTimeout(() => setPhase(i + 1), t));
+    return () => ts.forEach(clearTimeout);
+  }, []);
+
+  const signals = [
+    { label: "buying_intent", value: 0.94, color: "#00D9FF" },
+    { label: "urgency",       value: 0.72, color: "#f59e0b" },
+    { label: "frustration",   value: 0.21, color: "#f87171" },
+  ];
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      {/* Message */}
+      <div className="rounded-2xl border border-[#1C1C1C] bg-[#050505] p-4">
+        <p className="text-[11px] text-[#555] mb-2.5">Visitor message</p>
+        <div className="bg-[#0A0A0A] border border-[#1C1C1C] rounded-xl px-4 py-3 text-[13px] text-white leading-relaxed">
+          "We need the enterprise plan urgently — we're launching next week"
+        </div>
+      </div>
+
+      {/* Intent signals */}
+      {phase >= 1 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-[#1C1C1C] bg-[#050505] p-4 flex-1">
+          <p className="text-[11px] text-[#555] mb-3">Intent signals detected</p>
+          <div className="space-y-3">
+            {signals.map((s, i) => (
+              i < phase && (
+                <motion.div key={s.label} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="flex items-center gap-3">
+                  <span className="text-[11px] font-mono text-[#555] w-32 shrink-0">{s.label}</span>
+                  <div className="flex-1 h-1.5 rounded-full bg-[#1C1C1C] overflow-hidden">
+                    <motion.div className="h-full rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${s.value * 100}%` }}
+                      transition={{ delay: i * 0.1 + 0.2, duration: 0.7, ease: "easeOut" }}
+                      style={{ backgroundColor: s.color }} />
+                  </div>
+                  <span className="text-[11px] font-mono font-bold w-8 text-right" style={{ color: s.color }}>{s.value}</span>
+                </motion.div>
+              )
+            ))}
+          </div>
+
+          {phase >= 4 && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+              className="mt-4 pt-3 border-t border-[#1C1C1C] space-y-2">
+              {[
+                { icon: "⚡", label: "Webhook fired → Salesforce CRM" },
+                { icon: "💬", label: "Slack alert → #sales channel" },
+              ].map((a) => (
+                <motion.div key={a.label} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="flex items-center gap-2 text-[12px] text-[#888]">
+                  <span>{a.icon}</span><span>{a.label}</span>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Handoff panel ──────────────────────────────────────── */
+function HandoffPanel() {
+  const [status, setStatus] = useState<"waiting" | "active" | "resolved">("waiting");
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setStatus("active"), 2000);
+    const t2 = setTimeout(() => setStatus("resolved"), 6000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      {/* Status timeline */}
+      <div className="rounded-2xl border border-[#1C1C1C] bg-[#050505] p-4">
+        <p className="text-[11px] text-[#555] mb-3">Handoff status</p>
+        <div className="flex items-center gap-2">
+          {(["waiting", "active", "resolved"] as const).map((s, i) => (
+            <React.Fragment key={s}>
+              <div className={`flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-medium border transition-all duration-500 ${
+                status === s
+                  ? s === "waiting" ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                  : s === "active" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  : "border-[#1C1C1C] bg-[#0A0A0A] text-[#555]"
+                  : "border-[#1C1C1C] text-[#333]"
+              }`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  status === s
+                    ? s === "waiting" ? "bg-amber-400 animate-pulse"
+                    : s === "active" ? "bg-emerald-400 animate-pulse"
+                    : "bg-[#555]"
+                    : "bg-[#333]"
+                }`} />
+                {s.charAt(0).toUpperCase() + s.slice(1)}
+              </div>
+              {i < 2 && <div className="flex-1 h-px bg-[#1C1C1C]" />}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      {/* Inbox card */}
+      <div className="flex-1 rounded-2xl border border-[#1C1C1C] bg-[#050505] p-4">
+        <p className="text-[11px] text-[#555] mb-3">Your inbox</p>
+        <div className="rounded-xl border border-[#1C1C1C] bg-[#0A0A0A] p-3">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <p className="text-[12px] font-semibold text-white">Sarah K.</p>
+              <p className="text-[10px] text-[#555]">Trigger: explicit request · 2 min ago</p>
+            </div>
+            <span className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${
+              status === "waiting" ? "text-amber-400 bg-amber-500/10" : status === "active" ? "text-emerald-400 bg-emerald-500/10" : "text-[#555] bg-[#1C1C1C]"
+            }`}>
+              {status.toUpperCase()}
+            </span>
+          </div>
+          <div className="text-[11px] text-[#888] bg-[#050505] border border-[#1C1C1C] rounded-lg p-2.5 mb-3 leading-relaxed">
+            "Visitor is urgently requesting enterprise support. AI could not find specific contract terms."
+          </div>
+          {status === "waiting" && (
+            <div className="rounded-lg bg-white text-black text-[12px] font-semibold text-center py-1.5 cursor-pointer">
+              Claim Conversation →
+            </div>
+          )}
+          {status === "active" && (
+            <div className="text-center text-[12px] text-emerald-400 font-medium">
+              ✓ You are live with this visitor
+            </div>
+          )}
+          {status === "resolved" && (
+            <div className="text-center text-[12px] text-[#555]">
+              Conversation resolved · AI resumed
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Integrations hub panel ─────────────────────────────── */
+function IntegrationsPanel() {
+  const [active, setActive] = useState(-1);
+
+  const integrations = [
+    { name: "Notion", color: "#fff", icon: "N", angle: 0 },
+    { name: "Slack", color: "#4a154b", icon: "S", angle: 60 },
+    { name: "Google Docs", color: "#4285f4", icon: "G", angle: 120 },
+    { name: "HubSpot", color: "#ff7a59", icon: "H", angle: 180 },
+    { name: "Airtable", color: "#f94f35", icon: "A", angle: 240 },
+    { name: "Zapier", color: "#ff4a00", icon: "Z", angle: 300 },
+  ];
+
+  useEffect(() => {
+    let i = 0;
+    const interval = setInterval(() => {
+      setActive(i % integrations.length);
+      i++;
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const radius = 80;
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      <div className="flex-1 rounded-2xl border border-[#1C1C1C] bg-[#050505] flex items-center justify-center">
+        <div className="relative w-[220px] h-[220px]">
+          {/* Center */}
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="h-16 w-16 rounded-2xl border border-[#1C1C1C] bg-[#0A0A0A] flex items-center justify-center">
+              <span className="text-[11px] font-bold text-white text-center leading-tight">Ask<br/>YourSite</span>
+            </div>
+          </div>
+
+          {/* Spokes */}
+          {integrations.map((int, i) => {
+            const rad = (int.angle * Math.PI) / 180;
+            const x = 110 + radius * Math.cos(rad) - 18;
+            const y = 110 + radius * Math.sin(rad) - 18;
+            const isActive = active === i;
+
+            return (
+              <div key={int.name}>
+                {/* Line */}
+                <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }}>
+                  <motion.line
+                    x1={110} y1={110}
+                    x2={x + 18} y2={y + 18}
+                    stroke={isActive ? "#00D9FF" : "#1C1C1C"}
+                    strokeWidth={isActive ? 1.5 : 1}
+                    animate={{ stroke: isActive ? "#00D9FF" : "#1C1C1C" }}
+                    transition={{ duration: 0.3 }}
+                    strokeDasharray={isActive ? "4 4" : "0"}
+                  />
+                </svg>
+                {/* Logo */}
+                <motion.div
+                  animate={{ scale: isActive ? 1.15 : 1, borderColor: isActive ? "#00D9FF" : "#1C1C1C" }}
+                  transition={{ duration: 0.3 }}
+                  className="absolute h-9 w-9 rounded-xl border bg-[#0A0A0A] flex items-center justify-center z-10"
+                  style={{ left: x, top: y }}
+                >
+                  <span className="text-[12px] font-bold" style={{ color: isActive ? "#00D9FF" : "#555" }}>
+                    {int.icon}
+                  </span>
+                </motion.div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-[#1C1C1C] bg-[#050505] px-4 py-3 text-[12px] text-[#888]">
+        <span className="text-white font-semibold">7 native integrations</span> + Zapier for 6,000+ tools.{" "}
+        Data flows in. Actions fire out.
+      </div>
+    </div>
+  );
+}
+
+/* ─── Triggers panel ─────────────────────────────────────── */
+function TriggersPanel() {
+  const [step, setStep] = useState(0);
+
+  const events = [
+    { label: "Visitor on /pricing for 45s", color: "#888" },
+    { label: "Widget auto-opens →", color: "#00D9FF" },
+    { label: '"Need help choosing a plan?"', color: "#fff" },
+    { label: "Visitor replies: 'Yes!'", color: "#888" },
+    { label: "Lead captured ✓", color: "#4ade80" },
+  ];
+
+  useEffect(() => {
+    if (step >= events.length) return;
+    const t = setTimeout(() => setStep((s) => s + 1), step === 0 ? 600 : 1000);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  return (
+    <div className="h-full flex flex-col gap-3">
+      <div className="flex-1 rounded-2xl border border-[#1C1C1C] bg-[#050505] p-4">
+        <p className="text-[11px] text-[#555] mb-4">Proactive trigger: time-on-page</p>
+        <div className="space-y-3">
+          {events.slice(0, step).map((ev, i) => (
+            <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+              className="flex items-start gap-3">
+              <div className="mt-1 h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: ev.color }} />
+              <span className="text-[13px]" style={{ color: ev.color }}>{ev.label}</span>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {[
+          { label: "Time on page", value: "45s trigger" },
+          { label: "Exit intent", value: "On cursor leave" },
+          { label: "Return visit", value: "2nd+ visit" },
+          { label: "URL match", value: "/pricing, /demo" },
+        ].map((t) => (
+          <div key={t.label} className="rounded-xl border border-[#1C1C1C] bg-[#050505] p-3">
+            <p className="text-[10px] text-[#555] mb-0.5">{t.label}</p>
+            <p className="text-[11px] font-semibold text-white">{t.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Steps config ──────────────────────────────────────── */
 const STEPS = [
   {
-    id: "train",
-    icon: Globe,
-    title: "Train AI instantly",
-    subtitle: "From URL to AI agent in under a minute",
-    desc: "Enter your website URL and our AI reads everything — products, pricing, FAQs, docs, blogs. No manual copy-pasting, no spreadsheets. Just a URL.",
-    bullets: [
-      "Reads up to 500 pages automatically",
-      "Understands tables, lists, and prose",
-      "Auto-refreshes when your content changes",
-    ],
-    accent: "#3B82F6",
+    id: "knowledge",
+    badge: "Knowledge Base",
+    title: "Train on any source. Automatically.",
+    desc: "Paste a URL, upload a PDF, or connect Notion, Google Docs, Airtable, or HubSpot. Your AI reads it all and stays updated every night.",
+    bullets: ["Website crawling — up to 500 pages", "PDF, plain text, spreadsheets", "Notion, Google Docs, HubSpot, Airtable"],
+    panel: <TerminalPanel />,
   },
   {
-    id: "customize",
-    icon: Palette,
-    title: "Customize your agent",
-    subtitle: "Looks and sounds like your brand",
-    desc: "Set your brand colors, upload your logo, define your agent's name and personality. Customers will think it's a native part of your site.",
-    bullets: [
-      "Match any brand color scheme",
-      "Custom welcome message & tone",
-      "Remove AskYourSite branding",
-    ],
-    accent: "#8B5CF6",
+    id: "agent",
+    badge: "Agent Mode",
+    title: "Detects intent. Takes action. Autonomously.",
+    desc: "The AI doesn't just answer questions — it classifies intent, triggers webhooks, alerts your sales team, and captures leads without a single button click.",
+    bullets: ["5 intent signals: buying, urgency, frustration, unanswered, repetition", "Webhook triggers to any CRM or tool", "Slack alerts for high-value signals"],
+    panel: <AgentPanel />,
   },
   {
-    id: "embed",
-    icon: Code2,
-    title: "Embed anywhere",
-    subtitle: "One script tag, any platform",
-    desc: "Copy a single `<script>` tag and paste it into your site. Works on Webflow, WordPress, Shopify, Framer, or raw HTML — no plugins needed.",
-    bullets: [
-      "Works on any website platform",
-      "Mobile responsive out of the box",
-      "No performance impact",
-    ],
-    accent: "#10B981",
+    id: "handoff",
+    badge: "Human Handoff",
+    title: "When AI isn't enough, a human steps in.",
+    desc: "Frustrated visitor? Explicit request for a human? The AI escalates automatically — no buttons on the visitor side. Your team gets a live inbox with full context.",
+    bullets: ["Zero friction for the visitor", "Full conversation history + AI summary", "Claim, reply, resolve — in one view"],
+    panel: <HandoffPanel />,
   },
   {
-    id: "analytics",
-    icon: BarChart3,
-    title: "See what's working",
-    subtitle: "Analytics that actually matter",
-    desc: "Track conversation volume, top questions, unanswered queries, and lead captures. Know exactly where customers are struggling.",
-    bullets: [
-      "Top questions & unanswered gaps",
-      "Lead capture & conversion tracking",
-      "Export data to CSV or Google Sheets",
-    ],
-    accent: "#F59E0B",
+    id: "integrations",
+    badge: "Integrations",
+    title: "Plug into your entire stack.",
+    desc: "Native connections to Notion, Google Docs, Airtable, HubSpot, Slack, Calendly. Plus Zapier for 6,000+ more. Data flows in, actions fire out.",
+    bullets: ["7 native integrations", "Zapier: 6,000+ supported apps", "Webhooks to any endpoint"],
+    panel: <IntegrationsPanel />,
+  },
+  {
+    id: "triggers",
+    badge: "Proactive Triggers",
+    title: "Don't wait for visitors to ask.",
+    desc: "Configure triggers that open the chat at the perfect moment: time on pricing page, exit intent, return visits, or specific URL patterns.",
+    bullets: ["Time-on-page, exit intent, return visit", "URL pattern matching", "Custom opening message per trigger"],
+    panel: <TriggersPanel />,
   },
 ];
 
-/* ─── Left panel UI previews ─────────────────────────────── */
-function TrainPreview() {
-  const [progress, setProgress] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setProgress((p) => (p >= 100 ? 0 : p + 2)), 80);
-    return () => clearInterval(t);
-  }, []);
-  const pages = ["Home · 2.3KB", "Pricing · 1.8KB", "About · 1.2KB", "FAQ · 3.1KB", "Blog · 4.5KB"];
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/3 px-4 py-3">
-        <Globe className="h-4 w-4 text-blue-400 shrink-0" />
-        <span className="text-sm text-slate-300">yourwebsite.com</span>
-        <div className="ml-auto text-xs text-blue-400 font-medium">Scanning...</div>
-      </div>
-      <div className="rounded-xl border border-white/8 bg-white/3 p-4 space-y-2">
-        {pages.map((p, i) => (
-          <motion.div
-            key={p}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.3 }}
-            className="flex items-center gap-2 text-xs"
-          >
-            <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
-            <span className="text-slate-400">{p}</span>
-            <div className="ml-auto text-green-500">✓</div>
-          </motion.div>
-        ))}
-      </div>
-      <div>
-        <div className="flex justify-between text-xs text-slate-500 mb-1">
-          <span>Training progress</span>
-          <span>{progress}%</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-white/5">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CustomizePreview() {
-  const colors = ["#8B5CF6", "#3B82F6", "#10B981", "#F59E0B", "#EF4444"];
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setActive((a) => (a + 1) % colors.length), 1500);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/8 bg-white/3 p-4">
-        <p className="text-xs text-slate-500 mb-3">Primary Color</p>
-        <div className="flex gap-2">
-          {colors.map((c, i) => (
-            <motion.button
-              key={c}
-              animate={{ scale: active === i ? 1.2 : 1 }}
-              className={`h-7 w-7 rounded-full border-2 transition-all ${active === i ? "border-white" : "border-transparent"}`}
-              style={{ backgroundColor: c }}
-            />
-          ))}
-        </div>
-      </div>
-      <div className="rounded-xl border overflow-hidden transition-all duration-500" style={{ borderColor: colors[active] + "40" }}>
-        <div className="px-4 py-3 flex items-center gap-2" style={{ backgroundColor: colors[active] }}>
-          <div className="h-6 w-6 rounded-full bg-white/20" />
-          <span className="text-xs font-semibold text-white">My AI Agent</span>
-        </div>
-        <div className="p-3 bg-[#0D0D1A] space-y-2">
-          <div className="rounded-xl rounded-tl-sm bg-white/5 border border-white/8 px-3 py-2 text-xs text-slate-400 max-w-[80%]">
-            Hi! How can I help you today?
-          </div>
-          <div className="rounded-xl rounded-tr-sm px-3 py-2 text-xs text-white max-w-[60%] ml-auto" style={{ backgroundColor: colors[active] + "40", borderColor: colors[active] + "60", border: "1px solid" }}>
-            What are your prices?
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmbedPreview() {
-  const code = `<script
-  src="https://askyoursite.in/embed.js"
-  data-agent-id="abc123xyz"
-></script>`;
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-white/8 bg-[#0A0A12] p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-2.5 w-2.5 rounded-full bg-red-500/60" />
-          <div className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
-          <div className="h-2.5 w-2.5 rounded-full bg-green-500/60" />
-          <span className="ml-2 text-[10px] text-slate-600">index.html</span>
-        </div>
-        <pre className="text-xs text-violet-300 font-mono leading-relaxed whitespace-pre-wrap">{`</body>\n`}
-          <span className="text-green-400">{code}</span>
-{`\n</html>`}</pre>
-      </div>
-      <div className="flex items-center gap-2 rounded-xl border border-green-500/20 bg-green-500/5 px-4 py-3 text-xs text-green-400">
-        <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-        Agent is live on your website
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsPreview() {
-  const bars = [40, 65, 45, 80, 55, 90, 70];
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Conversations", value: "1,284", color: "text-blue-400" },
-          { label: "Leads Captured", value: "89", color: "text-green-400" },
-          { label: "Avg Response", value: "0.8s", color: "text-violet-400" },
-        ].map((s) => (
-          <div key={s.label} className="rounded-xl border border-white/8 bg-white/3 p-3 text-center">
-            <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
-            <p className="text-[9px] text-slate-600 mt-0.5">{s.label}</p>
-          </div>
-        ))}
-      </div>
-      <div className="rounded-xl border border-white/8 bg-white/3 p-4">
-        <p className="text-xs text-slate-500 mb-3">Conversations this week</p>
-        <div className="flex items-end gap-1.5 h-16">
-          {bars.map((h, i) => (
-            <motion.div
-              key={i}
-              initial={{ height: 0 }}
-              animate={{ height: `${h}%` }}
-              transition={{ delay: i * 0.1, duration: 0.5 }}
-              className="flex-1 rounded-sm bg-gradient-to-t from-violet-600 to-blue-500 opacity-80"
-            />
-          ))}
-        </div>
-        <div className="flex justify-between text-[9px] text-slate-600 mt-1">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-            <span key={d}>{d}</span>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const PREVIEWS = [TrainPreview, CustomizePreview, EmbedPreview, AnalyticsPreview];
-
-/* ─── Main Component ─────────────────────────────────────── */
+/* ─── Main component ────────────────────────────────────── */
 export function StickyFeatures() {
   const [activeStep, setActiveStep] = useState(0);
   const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const sectionRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const index = stepRefs.current.indexOf(entry.target as HTMLDivElement);
-            if (index !== -1) setActiveStep(index);
+            const idx = stepRefs.current.findIndex((r) => r === entry.target);
+            if (idx !== -1) setActiveStep(idx);
           }
         });
       },
-      { rootMargin: "-40% 0px -40% 0px", threshold: 0 }
+      { rootMargin: "-30% 0px -60% 0px" }
     );
-
-    stepRefs.current.forEach((el) => { if (el) observer.observe(el); });
+    stepRefs.current.forEach((ref) => ref && observer.observe(ref));
     return () => observer.disconnect();
   }, []);
 
-  const Preview = PREVIEWS[activeStep];
-  const step = STEPS[activeStep];
-
   return (
-    <section ref={sectionRef} className="relative py-24 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <span className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-blue-400 mb-4">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-            Features
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-white tracking-tight mb-4">
-            Everything in one place
+    <section className="py-24 bg-black border-b border-[#1C1C1C]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#1C1C1C] bg-[#0A0A0A] px-4 py-1.5 text-xs font-medium tracking-widest uppercase text-[#888] mb-6">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF]" />
+            Platform
+          </div>
+          <h2 className="text-4xl font-display font-bold text-white tracking-tight">
+            Everything the best support teams need.
           </h2>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-16 items-start">
-          {/* LEFT: Sticky preview */}
-          <div className="lg:sticky lg:top-24">
-            <div className="rounded-2xl border border-white/10 bg-[#0D0D1A] p-6 shadow-[0_0_60px_rgba(139,92,246,0.1)]">
-              {/* Panel header */}
-              <div className="flex items-center gap-2 mb-5 pb-4 border-b border-white/6">
-                <div
-                  className="h-3 w-3 rounded-full transition-colors duration-500"
-                  style={{ backgroundColor: step.accent }}
-                />
-                <span className="text-xs font-medium text-slate-400">{step.subtitle}</span>
-              </div>
-
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeStep}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <Preview />
-                </motion.div>
-              </AnimatePresence>
-            </div>
+        <div className="flex gap-16" ref={containerRef}>
+          {/* Left: sticky panel */}
+          <div className="hidden lg:block w-1/2 sticky top-24 self-start h-[460px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeStep}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.3 }}
+                className="h-full"
+              >
+                {STEPS[activeStep].panel}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
-          {/* RIGHT: Scrollable steps */}
-          <div className="space-y-16">
-            {STEPS.map((s, i) => {
-              const Icon = s.icon;
-              const isActive = i === activeStep;
-              return (
-                <div
-                  key={s.id}
-                  ref={(el) => { stepRefs.current[i] = el; }}
-                  className="cursor-default"
-                >
-                  <motion.div
-                    animate={{ opacity: isActive ? 1 : 0.4 }}
-                    transition={{ duration: 0.3 }}
-                    className="flex items-start gap-4"
-                  >
-                    <div
-                      className="h-12 w-12 rounded-xl border flex items-center justify-center shrink-0 transition-all duration-300"
-                      style={{
-                        backgroundColor: isActive ? s.accent + "20" : "transparent",
-                        borderColor: isActive ? s.accent + "40" : "rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <Icon className="h-6 w-6" style={{ color: isActive ? s.accent : "#64748b" }} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-white mb-2">{s.title}</h3>
-                      <p className="text-slate-400 text-sm leading-relaxed mb-4">{s.desc}</p>
-                      <ul className="space-y-2">
-                        {s.bullets.map((b) => (
-                          <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
-                            <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.accent }} />
-                            {b}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </motion.div>
+          {/* Right: scrollable steps */}
+          <div className="flex-1 space-y-24">
+            {STEPS.map((step, i) => (
+              <div
+                key={step.id}
+                ref={(el) => { stepRefs.current[i] = el; }}
+                className="min-h-[200px]"
+              >
+                {/* Mobile panel */}
+                <div className="lg:hidden mb-6 h-80">
+                  {step.panel}
                 </div>
-              );
-            })}
+
+                <div className={`transition-opacity duration-300 ${activeStep === i ? "opacity-100" : "opacity-40"}`}>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#1C1C1C] bg-[#0A0A0A] px-3 py-1 text-[11px] font-medium text-[#888] mb-4">
+                    {step.badge}
+                  </div>
+                  <h3 className="text-2xl font-display font-bold text-white tracking-tight mb-3">
+                    {step.title}
+                  </h3>
+                  <p className="text-[#888] text-base leading-relaxed mb-5">
+                    {step.desc}
+                  </p>
+                  <ul className="space-y-2">
+                    {step.bullets.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5 text-sm text-[#888]">
+                        <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#00D9FF] shrink-0" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

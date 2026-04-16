@@ -1,22 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { HeroSection } from "@/components/landing/hero-section";
-import { LiveDemoChat } from "@/components/landing/live-demo-chat";
-import { BentoFeatures } from "@/components/landing/bento-features";
+import { StatsBar } from "@/components/landing/stats-bar";
+import { FeatureMarquee } from "@/components/landing/feature-marquee";
+import { TabbedDemo } from "@/components/landing/tabbed-demo";
 import { StickyFeatures } from "@/components/landing/sticky-features";
-import { IntegrationsShowcase } from "@/components/landing/integrations-showcase";
-import { SocialProof } from "@/components/landing/social-proof";
 import { HowItWorks } from "@/components/landing/how-it-works";
+import { IntegrationsShowcase } from "@/components/landing/integrations-showcase";
+import { FeatureGrid } from "@/components/landing/feature-grid";
+import { SocialProof } from "@/components/landing/social-proof";
 import { FinalCTA } from "@/components/landing/final-cta";
-import {
-  CheckCircle2,
-  Menu,
-  X,
-  Sparkles,
-} from "lucide-react";
+import { CheckCircle2, Menu, X } from "lucide-react";
 
 function TwitterIcon({ className }: { className?: string }) {
   return (
@@ -45,6 +43,13 @@ function GithubIcon({ className }: { className?: string }) {
 /* ─── Navbar ─────────────────────────────────────────────── */
 function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   const links = [
     { label: "How it works", href: "#how-it-works" },
@@ -55,22 +60,21 @@ function Navbar() {
   ];
 
   return (
-    <header className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-[#0D0D1A]/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
+    <header className={`fixed top-0 inset-x-0 z-50 border-b transition-all duration-300 ${
+      scrolled ? "border-[#1C1C1C] bg-black/90 backdrop-blur-xl" : "border-transparent bg-transparent"
+    }`}>
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 lg:px-8 py-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="AskYourSite" width={32} height={32} className="rounded-lg" />
+          <Image src="/logo.png" alt="AskYourSite" width={30} height={30} className="rounded-lg" />
           <span className="font-display text-base font-bold text-white tracking-tight">AskYourSite</span>
         </Link>
 
         {/* Desktop nav */}
-        <nav className="hidden lg:flex items-center gap-7">
+        <nav className="hidden lg:flex items-center gap-8">
           {links.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              className="text-sm text-slate-400 hover:text-white transition-colors"
-            >
+            <Link key={l.label} href={l.href}
+              className="text-sm text-[#888] hover:text-white transition-colors">
               {l.label}
             </Link>
           ))}
@@ -78,45 +82,33 @@ function Navbar() {
 
         {/* Desktop CTAs */}
         <div className="hidden lg:flex items-center gap-3">
-          <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-3 py-2">
+          <Link href="/login" className="text-sm text-[#888] hover:text-white transition-colors px-3 py-2">
             Log in
           </Link>
-          <Link
-            href="/login"
-            className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2 text-sm font-semibold text-white hover:from-violet-500 hover:to-blue-500 transition-all"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
+          <Link href="/login"
+            className="rounded-xl border border-[#1C1C1C] bg-[#0A0A0A] px-4 py-2 text-sm font-semibold text-white hover:border-[#333] hover:bg-[#111] transition-all">
             Get Started
           </Link>
         </div>
 
         {/* Mobile toggle */}
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="lg:hidden p-2 text-slate-400 hover:text-white transition-colors"
-        >
+        <button onClick={() => setMobileOpen(!mobileOpen)}
+          className="lg:hidden p-2 text-[#888] hover:text-white transition-colors">
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
       </div>
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-white/6 bg-[#0D0D1A]/95 backdrop-blur-xl px-4 py-6 space-y-4">
+        <div className="lg:hidden border-t border-[#1C1C1C] bg-black px-6 py-6 space-y-4">
           {links.map((l) => (
-            <Link
-              key={l.label}
-              href={l.href}
-              onClick={() => setMobileOpen(false)}
-              className="block text-sm text-slate-400 hover:text-white py-2 transition-colors"
-            >
+            <Link key={l.label} href={l.href} onClick={() => setMobileOpen(false)}
+              className="block text-sm text-[#888] hover:text-white py-2 transition-colors">
               {l.label}
             </Link>
           ))}
-          <Link
-            href="/login"
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 py-3 text-sm font-semibold text-white"
-          >
-            <Sparkles className="h-4 w-4" />
+          <Link href="/login"
+            className="flex items-center justify-center w-full rounded-xl border border-[#1C1C1C] py-3 text-sm font-semibold text-white">
             Get Started Free
           </Link>
         </div>
@@ -134,12 +126,12 @@ function PricingSection() {
       period: "/mo",
       desc: "Perfect to get started",
       features: [
-        "1 chatbot",
+        "1 AI agent",
         "200 conversations / mo",
         "~50 pages training",
         "Basic widget customization",
-        "Unanswered question queue",
         "Analytics dashboard",
+        "Unanswered question queue",
       ],
       popular: false,
     },
@@ -149,15 +141,15 @@ function PricingSection() {
       period: "/mo",
       desc: "For growing businesses",
       features: [
-        "3 chatbots",
+        "3 AI agents",
         "1,000 conversations / mo",
         "~200 pages training",
         "Full widget customization",
-        "Analytics dashboard",
         "Lead capture in chat",
-        'Remove "Powered by" branding',
-        "Image-based product search",
-        "Slack, Calendly, Notion integrations",
+        "Remove branding",
+        "Image search",
+        "Slack, Calendly, Notion",
+        "Agent mode + webhooks",
       ],
       popular: true,
     },
@@ -167,85 +159,83 @@ function PricingSection() {
       period: "/mo",
       desc: "For scale & teams",
       features: [
-        "10 chatbots",
+        "10 AI agents",
         "5,000 conversations / mo",
         "~500 pages training",
-        "Image-based product search",
-        "Advanced analytics + insights",
+        "Human handoff + inbox",
         "Lead capture + CSV export",
-        "Custom AI persona & tone",
-        "Priority support + onboarding",
-        "API access (coming soon)",
+        "All integrations",
+        "Team workspace",
+        "Custom AI persona",
+        "Priority support",
       ],
       popular: false,
     },
   ];
 
   return (
-    <section id="pricing" className="relative py-24 px-4">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-14">
-          <span className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-violet-400 mb-4">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulse" />
+    <section id="pricing" className="py-24 bg-black border-b border-[#1C1C1C]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="mb-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#1C1C1C] bg-[#0A0A0A] px-4 py-1.5 text-xs font-medium tracking-widest uppercase text-[#888] mb-6">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF]" />
             Pricing
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-white tracking-tight mb-4">
-            Simple, transparent pricing
+          </div>
+          <h2 className="text-4xl font-display font-bold text-white tracking-tight mb-3">
+            Simple, transparent pricing.
           </h2>
-          <p className="text-slate-400 text-lg">7-day free trial · No credit card required</p>
+          <p className="text-[#888] text-lg">7-day free trial · No credit card required · Cancel anytime</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-px bg-[#1C1C1C]">
           {plans.map((plan) => (
-            <div
-              key={plan.name}
-              className={`relative rounded-2xl p-7 flex flex-col gap-6 transition-all ${
-                plan.popular
-                  ? "border border-violet-500/50 bg-gradient-to-b from-violet-900/20 to-transparent shadow-[0_0_40px_rgba(139,92,246,0.15)] scale-[1.02]"
-                  : "border border-white/8 bg-white/[0.02]"
-              }`}
-            >
+            <div key={plan.name}
+              className={`relative flex flex-col p-8 ${
+                plan.popular ? "bg-[#0A0A0A]" : "bg-black"
+              }`}>
               {plan.popular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-1 text-xs font-bold text-white">
-                  Most Popular
-                </div>
+                <div className="absolute top-0 inset-x-0 h-px bg-[#00D9FF]/50" />
               )}
 
-              <div>
-                <h3 className="text-base font-semibold text-slate-300">{plan.name}</h3>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="font-display text-4xl font-bold text-white">{plan.price}</span>
-                  <span className="text-sm text-slate-500">{plan.period}</span>
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-[#888] uppercase tracking-widest">{plan.name}</h3>
+                  {plan.popular && (
+                    <span className="text-[10px] font-semibold text-[#00D9FF] bg-[#00D9FF]/10 border border-[#00D9FF]/20 rounded-full px-2.5 py-0.5 uppercase tracking-wider">
+                      Most Popular
+                    </span>
+                  )}
                 </div>
-                <p className="mt-0.5 text-xs text-slate-600">+ taxes applicable</p>
-                <p className="mt-1 text-sm text-slate-500">{plan.desc}</p>
+                <div className="flex items-baseline gap-1 mb-1">
+                  <span className="font-display text-5xl font-bold text-white">{plan.price}</span>
+                  <span className="text-sm text-[#555]">{plan.period}</span>
+                </div>
+                <p className="text-sm text-[#555]">{plan.desc}</p>
               </div>
 
-              <ul className="flex flex-col gap-3 flex-1">
+              <ul className="flex flex-col gap-3 flex-1 mb-8">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-3 text-sm text-slate-300">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-violet-400" />
+                  <li key={f} className="flex items-center gap-2.5 text-sm text-[#888]">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-[#00D9FF]" />
                     {f}
                   </li>
                 ))}
               </ul>
 
-              <Link
-                href="/login"
+              <Link href="/login"
                 className={`w-full rounded-xl py-3 text-center text-sm font-semibold transition-all ${
                   plan.popular
-                    ? "bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-500 hover:to-blue-500"
-                    : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
-                }`}
-              >
+                    ? "bg-white text-black hover:bg-white/90"
+                    : "border border-[#1C1C1C] text-white hover:border-[#333] hover:bg-[#0A0A0A]"
+                }`}>
                 Start free trial
               </Link>
             </div>
           ))}
         </div>
 
-        <p className="mt-8 text-center text-xs text-slate-600">
-          No credit card required to start · Cancel anytime · Secure payments via Dodo Payments
+        <p className="mt-6 text-center text-xs text-[#444]">
+          No credit card required · Cancel anytime · Secure payments via Dodo Payments
         </p>
       </div>
     </section>
@@ -255,35 +245,31 @@ function PricingSection() {
 /* ─── Footer ─────────────────────────────────────────────── */
 function Footer() {
   return (
-    <footer className="border-t border-white/[0.06] bg-[#0A0A10] px-4 py-16">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
+    <footer className="border-t border-[#1C1C1C] bg-black px-6 py-16">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-10">
         {/* Brand */}
         <div className="md:col-span-1">
           <Link href="/" className="flex items-center gap-2 mb-4">
-            <Image src="/logo.png" alt="AskYourSite" width={28} height={28} className="rounded-lg" />
+            <Image src="/logo.png" alt="AskYourSite" width={26} height={26} className="rounded-lg" />
             <span className="font-display text-sm font-bold text-white">AskYourSite</span>
           </Link>
-          <p className="text-xs text-slate-500 leading-relaxed mb-5">
-            Turn any website into an AI-powered sales and support agent. No code required.
+          <p className="text-xs text-[#444] leading-relaxed mb-5">
+            AI-powered support & sales, built for the modern web.
           </p>
-          <div className="flex gap-3">
+          <div className="flex gap-2.5">
             {[
               { icon: TwitterIcon, href: "#" },
               { icon: LinkedinIcon, href: "#" },
               { icon: GithubIcon, href: "#" },
-            ].map(({ icon: Icon, href }) => (
-              <a
-                key={href}
-                href={href}
-                className="h-8 w-8 rounded-lg border border-white/8 bg-white/3 flex items-center justify-center text-slate-500 hover:text-white hover:border-white/20 transition-all"
-              >
+            ].map(({ icon: Icon, href }, i) => (
+              <a key={i} href={href}
+                className="h-8 w-8 rounded-lg border border-[#1C1C1C] flex items-center justify-center text-[#444] hover:text-[#888] hover:border-[#333] transition-all">
                 <Icon className="h-3.5 w-3.5" />
               </a>
             ))}
           </div>
         </div>
 
-        {/* Links */}
         {[
           {
             title: "Product",
@@ -313,11 +299,11 @@ function Footer() {
           },
         ].map((col) => (
           <div key={col.title}>
-            <p className="text-xs font-semibold text-white mb-4 uppercase tracking-widest">{col.title}</p>
+            <p className="text-[11px] font-semibold text-[#888] mb-4 uppercase tracking-widest">{col.title}</p>
             <ul className="space-y-2.5">
               {col.links.map((l) => (
                 <li key={l.label}>
-                  <Link href={l.href} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                  <Link href={l.href} className="text-xs text-[#444] hover:text-[#888] transition-colors">
                     {l.label}
                   </Link>
                 </li>
@@ -327,9 +313,9 @@ function Footer() {
         ))}
       </div>
 
-      <div className="max-w-6xl mx-auto mt-12 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <p className="text-xs text-slate-600">© 2026 AskYourSite. All rights reserved.</p>
-        <p className="text-xs text-slate-700">Made with ❤️ for businesses everywhere</p>
+      <div className="max-w-7xl mx-auto mt-12 pt-6 border-t border-[#1C1C1C] flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p className="text-xs text-[#333]">© 2026 AskYourSite. All rights reserved.</p>
+        <p className="text-xs text-[#333]">Built for builders.</p>
       </div>
     </footer>
   );
@@ -338,42 +324,40 @@ function Footer() {
 /* ─── Page ───────────────────────────────────────────────── */
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-[#0D0D1A] text-white">
+    <div className="min-h-screen bg-black text-white">
       <Navbar />
 
-      {/* Hero with interactive URL demo */}
+      {/* 1. Hero */}
       <HeroSection />
 
-      {/* Animated live demo chat */}
-      <div id="live-demo">
-        <LiveDemoChat />
-      </div>
+      {/* 2. Stats bar */}
+      <StatsBar />
 
-      {/* Bento grid features */}
-      <div id="features">
-        <BentoFeatures />
-      </div>
+      {/* 3. Feature marquee */}
+      <FeatureMarquee />
 
-      {/* How it works */}
-      <div id="how-it-works">
-        <HowItWorks />
-      </div>
+      {/* 4. Tabbed product demo */}
+      <TabbedDemo />
 
-      {/* Sticky scroll features */}
+      {/* 5. Deep-dive sticky feature panels */}
       <StickyFeatures />
 
-      {/* Integrations showcase */}
-      <div id="integrations">
-        <IntegrationsShowcase />
-      </div>
+      {/* 6. How it works */}
+      <HowItWorks />
 
-      {/* Social proof */}
+      {/* 7. Integrations 3×3 grid */}
+      <IntegrationsShowcase />
+
+      {/* 8. All features grid */}
+      <FeatureGrid />
+
+      {/* 9. Social proof */}
       <SocialProof />
 
-      {/* Pricing */}
+      {/* 10. Pricing */}
       <PricingSection />
 
-      {/* Final CTA */}
+      {/* 11. Final CTA */}
       <FinalCTA />
 
       <Footer />

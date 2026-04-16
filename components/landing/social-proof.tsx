@@ -1,145 +1,85 @@
 "use client";
 
-import React from "react";
 import { motion } from "framer-motion";
+import { useInView } from "react-intersection-observer";
 import { Star } from "lucide-react";
 
-/* ─── Testimonials ───────────────────────────────────────── */
 const TESTIMONIALS = [
   {
-    quote: "We went from answering 50+ support emails a day to almost zero. AskYourSite handles 80% of them automatically. It paid for itself in week one.",
-    name: "Sarah Chen",
+    quote: "AskYourSite handles 90% of our support tickets automatically. Our team only sees the conversations that matter — everything else is resolved before a human even looks at it.",
+    name: "Sarah K.",
+    role: "Head of Customer Experience",
+    company: "Acme Commerce",
+    avatar: "SK",
+  },
+  {
+    quote: "We deployed in 45 minutes. Within the first week, our AI had answered over 1,200 questions. Lead capture alone paid for the subscription in the first month.",
+    name: "Marcus T.",
     role: "Founder",
-    company: "StyleDrop",
-    avatar: "SC",
-    avatarColor: "from-violet-500 to-purple-600",
+    company: "LaunchStack",
+    avatar: "MT",
   },
   {
-    quote: "Our customers now get answers at 2 AM when we're asleep. The AI knows our product catalog better than some of our new sales reps. Absolutely wild.",
-    name: "Marcus Reid",
-    role: "Head of Growth",
-    company: "Nexus SaaS",
-    avatar: "MR",
-    avatarColor: "from-blue-500 to-cyan-600",
-  },
-  {
-    quote: "Setup literally took 4 minutes. I pasted the URL, hit train, and embedded the script. It was answering customer questions correctly within the hour.",
-    name: "Priya Sharma",
-    role: "E-commerce Director",
-    company: "Botanica Store",
-    avatar: "PS",
-    avatarColor: "from-green-500 to-teal-600",
+    quote: "The human handoff feature is what sold us. When a visitor is frustrated, the AI knows to step aside and we get a full context view. It's genuinely thoughtful design.",
+    name: "Priya N.",
+    role: "VP of Support",
+    company: "DevTools Inc.",
+    avatar: "PN",
   },
 ];
-
-const STATS = [
-  { value: "1000+", label: "Conversations per day" },
-  { value: "100+", label: "Businesses using AskYourSite" },
-  { value: "< 3s", label: "Average response time" },
-  { value: "80%", label: "Questions answered automatically" },
-];
-
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.1 } },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
 
 export function SocialProof() {
+  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.15 });
+
   return (
-    <section className="relative py-24 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <span className="inline-flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-4">
-            <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse" />
-            Trusted by businesses
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold text-white tracking-tight mb-4">
-            Growing businesses love AskYourSite
+    <section className="py-24 bg-black border-b border-[#1C1C1C]">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        {/* Top statement */}
+        <div className="max-w-3xl mb-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#1C1C1C] bg-[#0A0A0A] px-4 py-1.5 text-xs font-medium tracking-widest uppercase text-[#888] mb-6">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF]" />
+            Customers
+          </div>
+          <h2 className="text-4xl font-display font-bold text-white tracking-tight leading-tight">
+            Over 2,400 companies answer customer questions 24/7 — without hiring another support rep.
           </h2>
-          <p className="text-slate-400 text-lg max-w-xl mx-auto">
-            From solo founders to growing SaaS teams — they all use AI to answer faster.
-          </p>
         </div>
 
-        {/* Stats */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-60px" }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-16"
-        >
-          {STATS.map((stat) => (
+        {/* Cards */}
+        <div ref={ref} className="grid lg:grid-cols-3 gap-px bg-[#1C1C1C]">
+          {TESTIMONIALS.map((t, i) => (
             <motion.div
-              key={stat.label}
-              variants={itemVariants}
-              className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 text-center"
-            >
-              <p className="text-3xl font-bold text-white mb-1 bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
-                {stat.value}
-              </p>
-              <p className="text-xs text-slate-500">{stat.label}</p>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Testimonials */}
-        <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-60px" }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
-          {TESTIMONIALS.map((t) => (
-            <motion.div
-              key={t.name}
-              variants={itemVariants}
-              whileHover={{ scale: 1.02 }}
-              className="rounded-2xl border border-white/8 bg-white/[0.03] p-6 flex flex-col cursor-default"
+              key={i}
+              initial={{ opacity: 0, y: 16 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
+              transition={{ duration: 0.5, delay: i * 0.12 }}
+              className="bg-black p-8 hover:bg-[#0A0A0A] transition-colors"
             >
               {/* Stars */}
-              <div className="flex gap-0.5 mb-4">
-                {Array(5).fill(null).map((_, i) => (
-                  <Star key={i} className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+              <div className="flex gap-0.5 mb-6">
+                {[...Array(5)].map((_, j) => (
+                  <Star key={j} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                 ))}
               </div>
 
               {/* Quote */}
-              <p className="text-sm text-slate-300 leading-relaxed flex-1 mb-6">
+              <p className="text-[#888] text-base leading-relaxed mb-8">
                 &ldquo;{t.quote}&rdquo;
               </p>
 
               {/* Author */}
               <div className="flex items-center gap-3">
-                <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${t.avatarColor} flex items-center justify-center text-xs font-bold text-white`}>
-                  {t.avatar}
+                <div className="h-9 w-9 rounded-full bg-[#0A0A0A] border border-[#1C1C1C] flex items-center justify-center">
+                  <span className="text-[11px] font-bold text-[#888]">{t.avatar}</span>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">{t.name}</p>
-                  <p className="text-xs text-slate-500">{t.role} · {t.company}</p>
+                  <p className="text-[11px] text-[#555]">{t.role} · {t.company}</p>
                 </div>
               </div>
             </motion.div>
           ))}
-        </motion.div>
-
-        {/* Trust bar */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.3 }}
-          className="mt-12 text-center text-xs text-slate-600"
-        >
-          ★★★★★ Rated 4.9/5 by customers · No credit card required to start
-        </motion.p>
+        </div>
       </div>
     </section>
   );

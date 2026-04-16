@@ -1,81 +1,87 @@
 "use client";
 
-import React from "react";
 import { motion } from "framer-motion";
-import { Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
-
-const BENEFITS = [
-  "7-day free trial",
-  "No credit card required",
-  "Set up in under 5 minutes",
-  "Cancel anytime",
-];
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 export function FinalCTA() {
   return (
-    <section className="relative py-24 px-4 overflow-hidden">
-      {/* Background gradient */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-violet-950/20 to-transparent" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-violet-600/8 blur-[120px] animate-breathe" />
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-blue-600/6 blur-[80px] animate-breathe [animation-delay:2s]" />
+    <section className="py-32 bg-black relative overflow-hidden">
+      {/* Very subtle cyan tinge — not a gradient, just a hint */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="w-[600px] h-[300px] rounded-full bg-[#00D9FF] opacity-[0.03] blur-[120px]" />
       </div>
 
-      <div className="max-w-3xl mx-auto relative z-10 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
+      <div className="relative z-10 max-w-3xl mx-auto px-6 lg:px-8 text-center">
+        {/* Badge */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-[#1C1C1C] bg-[#0A0A0A] px-4 py-1.5 text-xs font-medium tracking-widest uppercase text-[#888] mb-10">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF] animate-pulse" />
+          Get Started
+        </div>
+
+        {/* Headline */}
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.6 }}
+          className="text-5xl sm:text-6xl font-display font-bold text-white tracking-tight leading-[1.05] mb-6"
         >
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-violet-400 mb-6">
-            <Sparkles className="h-3 w-3 animate-pulse" />
-            Ready to launch?
-          </div>
+          Start building your AI agent in under 60 seconds.
+        </motion.h2>
 
-          {/* Headline */}
-          <h2 className="text-4xl sm:text-5xl font-display font-bold text-white tracking-tight mb-6 leading-[1.1]">
-            Start building your{" "}
-            <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent">
-              AI agent today
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="text-[#888] text-lg leading-relaxed mb-10"
+        >
+          No credit card. No setup fees. Train on your website and deploy today.
+        </motion.p>
+
+        {/* Feature bullets */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-[#555] mb-12"
+        >
+          {[
+            "5 free demo messages",
+            "Deploy in 60 seconds",
+            "No credit card required",
+            "Cancel anytime",
+          ].map((f) => (
+            <span key={f} className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+              {f}
             </span>
-          </h2>
+          ))}
+        </motion.div>
 
-          {/* Subtext */}
-          <p className="text-lg text-slate-400 mb-10 max-w-xl mx-auto leading-relaxed">
-            Join 500+ businesses that never miss a customer question.
-            Your AI agent is ready in minutes.
-          </p>
-
-          {/* CTA buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-8 py-4 text-sm font-semibold text-white hover:from-violet-500 hover:to-blue-500 transition-all shadow-[0_0_40px_rgba(139,92,246,0.3)] hover:shadow-[0_0_60px_rgba(139,92,246,0.4)]"
-            >
-              <Sparkles className="h-4 w-4" />
-              Get Started for Free
-            </Link>
-            <Link
-              href="#demo"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-8 py-4 text-sm font-semibold text-slate-300 hover:text-white hover:border-white/20 transition-all"
-            >
-              Watch demo first
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-
-          {/* Benefits */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
-            {BENEFITS.map((b) => (
-              <span key={b} className="flex items-center gap-1.5 text-xs text-slate-500">
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                {b}
-              </span>
-            ))}
-          </div>
+        {/* CTAs */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.25 }}
+          className="flex flex-col sm:flex-row gap-3 justify-center"
+        >
+          <Link
+            href="/login"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-white px-8 py-4 text-sm font-semibold text-black hover:bg-white/90 transition-all"
+          >
+            Get Started Free
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/login"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-[#1C1C1C] px-8 py-4 text-sm font-semibold text-[#888] hover:text-white hover:border-[#333] transition-all"
+          >
+            Book a Demo
+          </Link>
         </motion.div>
       </div>
     </section>
