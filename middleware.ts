@@ -79,5 +79,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // /live-chat/* is excluded — it uses join-token auth only (no session required)
   matcher: ["/dashboard/:path*", "/login", "/auth/callback"],
 };

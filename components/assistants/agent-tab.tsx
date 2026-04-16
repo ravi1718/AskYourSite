@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Zap, Plus, Trash2, TestTube2, ChevronDown, CheckCircle2, XCircle, Clock, ToggleLeft, ToggleRight, Loader2, Bell } from "lucide-react";
+import { Zap, Plus, Trash2, TestTube2, ChevronDown, CheckCircle2, XCircle, Clock, ToggleLeft, ToggleRight, Loader2, Bell, Headphones, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { WebhookModal } from "./webhook-modal";
@@ -44,12 +44,14 @@ export function AgentTab({
   onConfigChange,
   onSave,
   saving,
+  featureFlags = {},
 }: {
   assistantId: string;
   widgetConfig: Record<string, any>;
   onConfigChange: (key: string, value: any) => void;
   onSave: () => void;
   saving: boolean;
+  featureFlags?: Record<string, boolean>;
 }) {
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [logs, setLogs] = useState<AgentLog[]>([]);
@@ -234,6 +236,78 @@ export function AgentTab({
             Save Settings
           </Button>
         </div>
+      </div>
+
+      {/* Human Handoff Toggle */}
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
+              <Headphones className="h-5 w-5 text-orange-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white">Human Handoff</h3>
+                {!featureFlags.human_handoff && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                    <Lock className="h-2.5 w-2.5" /> BUSINESS
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Automatically connect frustrated or stuck visitors to your team. You'll get an email and inbox notification.
+              </p>
+            </div>
+          </div>
+          {featureFlags.human_handoff ? (
+            <button
+              onClick={() => onConfigChange("humanHandoffEnabled", !widgetConfig.humanHandoffEnabled)}
+              className="shrink-0"
+            >
+              {widgetConfig.humanHandoffEnabled
+                ? <ToggleRight className="h-9 w-9 text-orange-400" />
+                : <ToggleLeft className="h-9 w-9 text-slate-500" />
+              }
+            </button>
+          ) : (
+            <ToggleLeft className="h-9 w-9 text-slate-700 cursor-not-allowed" />
+          )}
+        </div>
+
+        {featureFlags.human_handoff && widgetConfig.humanHandoffEnabled && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              The AI detects these signals and escalates automatically:
+            </p>
+            <ul className="mt-2 space-y-1">
+              {[
+                "Visitor explicitly asks for a human",
+                "Urgent or time-sensitive language detected",
+                "Visitor frustration score ≥ 4/5",
+                "AI couldn't answer 2+ questions in a row",
+                "Same question repeated 3 times",
+              ].map((item) => (
+                <li key={item} className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="h-1 w-1 rounded-full bg-orange-400 shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {featureFlags.human_handoff && (
+          <div className="mt-5 flex justify-end">
+            <Button
+              onClick={onSave}
+              disabled={saving}
+              className="bg-orange-600 hover:bg-orange-500 text-white"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Save Settings
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Outbound Webhooks */}

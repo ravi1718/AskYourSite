@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { AYS_MARKER, parseMarkers, type BookingPayload } from "@/lib/chat/parse-markers";
 import ReactMarkdown from "react-markdown";
 import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck, Zap, GitBranch } from "lucide-react";
@@ -184,6 +184,66 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
   const [chatBooking, setChatBooking] = useState<BookingPayload | null>(null);
   const [chatImage, setChatImage] = useState<{ base64: string; mimeType: string; previewUrl: string } | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom whenever messages change
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Handoff polling state
+  const [handoffActive, setHandoffActive] = useState(false);
+  const handoffPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handoffLastMsgTimeRef = useRef<string | null>(null);
+  const handoffSeenIdsRef = useRef<Set<string>>(new Set());
+
+  const startHandoffPoll = useCallback(() => {
+    if (handoffPollRef.current) return;
+    handoffPollRef.current = setInterval(async () => {
+      try {
+        const params = new URLSearchParams({ sessionId: chatSessionId, assistantId: assistant.id });
+        if (handoffLastMsgTimeRef.current) params.set("after", handoffLastMsgTimeRef.current);
+        const res = await fetch(`/api/handoff/poll?${params}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.status || data.status === "none") return;
+        if (data.status === "resolved" || data.status === "timed_out") {
+          clearInterval(handoffPollRef.current!);
+          handoffPollRef.current = null;
+          setHandoffActive(false);
+          setMessages((prev) => [...prev, {
+            role: "system",
+            content: data.status === "resolved" ? "Conversation resolved. AI assistant is back online." : "No agent was available. AI assistant is back online.",
+          }]);
+          return;
+        }
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          // Always advance cursor so subsequent polls don't re-fetch already-seen messages
+          const lastMsg = data.messages[data.messages.length - 1];
+          if (lastMsg?.created_at) handoffLastMsgTimeRef.current = lastMsg.created_at;
+
+          const incoming = data.messages.filter((m: { role: string; content: string; created_at: string }) =>
+            (m.role === "agent" || m.role === "system") && !handoffSeenIdsRef.current.has(m.created_at + "|" + m.content)
+          );
+          if (incoming.length > 0) {
+            incoming.forEach((m: { role: string; content: string; created_at: string }) =>
+              handoffSeenIdsRef.current.add(m.created_at + "|" + m.content)
+            );
+            setMessages((prev) => [...prev, ...incoming.map((m: { role: string; content: string }) => ({
+              role: m.role as "agent" | "system",
+              content: m.content,
+            }))]);
+          }
+        }
+      } catch (err) {
+        console.error("[Handoff poll error]", err);
+      }
+    }, 3000);
+  }, [chatSessionId, assistant.id]);
+
+  useEffect(() => {
+    return () => { if (handoffPollRef.current) clearInterval(handoffPollRef.current); };
+  }, []);
 
   // Embed copy state
   const [copied, setCopied] = useState(false);
@@ -431,6 +491,13 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
 
       if (!response.ok) throw new Error("Failed to fetch response");
 
+      // Handoff lockout — server skipped AI, a human is already handling this session
+      const isHandoffLockout = response.headers.get("X-Handoff-Active") === "true";
+      if (isHandoffLockout) {
+        if (!handoffActive) { setHandoffActive(true); startHandoffPoll(); }
+        return; // Don't show any AI bubble — the human agent will reply
+      }
+
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
 
@@ -467,6 +534,8 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
         });
         if (parsed.suggestions.length > 0) setChatSuggestions(parsed.suggestions);
         if (parsed.booking) setChatBooking(parsed.booking);
+        // Start handoff polling so agent replies appear here
+        if (parsed.handoff && !handoffActive) { setHandoffActive(true); startHandoffPoll(); }
       }
     } catch (err) {
       console.error(err);
@@ -624,7 +693,25 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
               
               <div className="border border-border bg-background rounded-2xl shadow-card flex flex-col h-[600px] overflow-hidden">
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {messages.map((m, i) => (
+                  {messages.map((m, i) => {
+                    if (m.role === "system") {
+                      return (
+                        <div key={i} className="flex justify-center">
+                          <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-3 py-1 text-xs text-amber-300">{m.content}</span>
+                        </div>
+                      );
+                    }
+                    if (m.role === "agent") {
+                      return (
+                        <div key={i} className="flex gap-3 max-w-[85%] self-start">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] text-emerald-400 px-1">Support Agent</span>
+                            <div className="px-4 py-3 text-sm rounded-2xl shadow-sm bg-emerald-500/10 border border-emerald-500/20 text-emerald-100 rounded-tl-sm">{m.content}</div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
                     <div key={i} className={cn(
                       "flex gap-3 max-w-[85%]",
                       m.role === "assistant" ? "self-start" : "self-end ml-auto flex-row-reverse"
@@ -640,8 +727,8 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                       )}
                       <div className={cn(
                         "px-4 py-3 text-sm rounded-2xl shadow-sm",
-                        m.role === "assistant" 
-                          ? "bg-surface border border-border text-slate-300 rounded-tl-sm" 
+                        m.role === "assistant"
+                          ? "bg-surface border border-border text-slate-300 rounded-tl-sm"
                           : "bg-primary/20 border border-primary/30 text-white rounded-tr-sm"
                       )}>
                         {m.role !== "assistant" && m.imagePreview && (
@@ -681,7 +768,8 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                   {/* Suggestion chips — shown after last assistant message */}
                   {!isTyping && chatSuggestions.length > 0 && (
                     <div className="flex flex-wrap gap-2 pl-11">
@@ -724,6 +812,7 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                       </span>
                     </div>
                   )}
+                  <div ref={chatBottomRef} />
                 </div>
                 <div className="p-4 bg-surface border-t border-border space-y-2">
                   {/* Image preview */}
@@ -1628,6 +1717,7 @@ curl_close($ch);`;
                 onConfigChange={(key, value) => setWidgetConfig(prev => ({ ...prev, [key]: value }))}
                 onSave={() => handleSaveAppearance(99)}
                 saving={savingSection === 99}
+                featureFlags={featureFlags}
               />
               <div className="border-t border-border pt-8">
                 <div className="mb-6">

@@ -827,6 +827,11 @@
     </button>
   `;
 
+  // Handoff status footer (shown when a human is handling the conversation)
+  const handoffFooterEl = document.createElement('div');
+  handoffFooterEl.id = 'ays-handoff-footer';
+  handoffFooterEl.style.cssText = 'display:none;align-items:center;justify-content:center;padding:6px 16px;background:rgba(0,0,0,0.3);border-top:1px solid rgba(255,255,255,0.06);font-size:13px;';
+
   // Lead capture form (shown before chat if enabled and not yet submitted)
   const sessionKey = 'ays_lead_' + agentId;
   const leadAlreadySubmitted = sessionStorage.getItem(sessionKey) === '1';
@@ -848,6 +853,7 @@
     windowEl.appendChild(leadFormEl);
   } else {
     windowEl.appendChild(messagesEl);
+    windowEl.appendChild(handoffFooterEl);
     windowEl.appendChild(imagePreviewArea);
     windowEl.appendChild(formEl);
   }
@@ -884,6 +890,155 @@
   let isTyping = false;
   let pendingImageBase64 = null;
   let pendingImageMimeType = null;
+
+  // ── Handoff state machine ───────────────────────────────────────────────────
+  let handoffState = null; // null | 'waiting' | 'active' | 'resolved' | 'timed_out'
+  let handoffPollInterval = null;
+  let handoffLastAgentMsgTime = null;
+  const handoffSeenMsgKeys = new Set(); // dedup guard: created_at+content
+  const HANDOFF_STORAGE_KEY = 'ays_handoff_' + agentId;
+
+  function saveHandoffState(status) {
+    try {
+      localStorage.setItem(HANDOFF_STORAGE_KEY, JSON.stringify({ status, sessionId: chatSessionId, ts: Date.now() }));
+    } catch(e) {}
+  }
+
+  function clearHandoffState() {
+    try { localStorage.removeItem(HANDOFF_STORAGE_KEY); } catch(e) {}
+  }
+
+  function getHandoffFooterEl() {
+    return document.getElementById('ays-handoff-footer');
+  }
+
+  function updateHandoffUI(status) {
+    handoffState = status;
+    saveHandoffState(status);
+
+    const footer = getHandoffFooterEl();
+    const input = document.getElementById('ays-chat-input');
+    const sendBtn = document.getElementById('ays-chat-send');
+    const messagesEl = document.getElementById('ays-messages');
+
+    if (!footer) return;
+
+    if (status === 'waiting') {
+      footer.style.display = 'flex';
+      footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#f59e0b;border-radius:50%;margin-right:8px;animation:ays-pulse 1.5s infinite"></span><span style="font-size:13px;color:#f59e0b">Connecting you to a team member…</span>';
+      if (input) input.disabled = true;
+      if (sendBtn) sendBtn.disabled = true;
+    } else if (status === 'active') {
+      footer.style.display = 'flex';
+      footer.innerHTML = '<span style="display:inline-block;width:8px;height:8px;background:#10b981;border-radius:50%;margin-right:8px"></span><span style="font-size:13px;color:#10b981">Team member is with you</span>';
+      if (input) input.disabled = false;
+      if (sendBtn) sendBtn.disabled = false;
+    } else if (status === 'resolved' || status === 'timed_out') {
+      footer.style.display = 'none';
+      clearHandoffState();
+      const msg = status === 'resolved'
+        ? 'Our team has resolved your conversation. The AI assistant is back online — feel free to ask anything!'
+        : 'No team member was available right now. The AI assistant is back online — how can I help?';
+      if (messagesEl) {
+        const sysEl = document.createElement('div');
+        sysEl.style.cssText = 'text-align:center;padding:8px 12px;margin:8px 0;border-radius:20px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.2);font-size:12px;color:#a5b4fc;';
+        sysEl.textContent = msg;
+        messagesEl.appendChild(sysEl);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      }
+      if (input) input.disabled = false;
+      if (sendBtn) sendBtn.disabled = false;
+    } else {
+      footer.style.display = 'none';
+    }
+  }
+
+  function renderAgentMessages(msgs) {
+    const messagesEl = document.getElementById('ays-messages');
+    if (!messagesEl || !msgs || !msgs.length) return;
+    msgs.forEach(msg => {
+      // Dedup — skip messages already rendered (handles page-reload re-poll)
+      const key = (msg.created_at || '') + '|' + msg.content;
+      if (handoffSeenMsgKeys.has(key)) return;
+      handoffSeenMsgKeys.add(key);
+
+      if (msg.role === 'system') {
+        const sysEl = document.createElement('div');
+        sysEl.style.cssText = 'text-align:center;padding:6px 12px;margin:6px 0;font-size:11px;color:#64748b;';
+        sysEl.textContent = msg.content;
+        messagesEl.appendChild(sysEl);
+      } else if (msg.role === 'agent') {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;margin-bottom:12px;';
+        const bubble = document.createElement('div');
+        bubble.style.cssText = 'max-width:80%;padding:10px 14px;border-radius:18px 18px 18px 4px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);color:#d1fae5;font-size:14px;line-height:1.5;';
+        bubble.textContent = msg.content;
+        const label = document.createElement('div');
+        label.style.cssText = 'font-size:10px;color:#64748b;margin-bottom:4px;';
+        label.textContent = 'Support Agent';
+        const wrap = document.createElement('div');
+        wrap.appendChild(label);
+        wrap.appendChild(bubble);
+        row.appendChild(wrap);
+        messagesEl.appendChild(row);
+      }
+      if (msg.created_at) handoffLastAgentMsgTime = msg.created_at;
+    });
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function startHandoffPoll() {
+    if (handoffPollInterval) return; // already polling
+    handoffPollInterval = setInterval(async () => {
+      try {
+        const after = handoffLastAgentMsgTime ? '&after=' + encodeURIComponent(handoffLastAgentMsgTime) : '';
+        const res = await fetch(API_BASE + '/api/handoff/poll?sessionId=' + encodeURIComponent(chatSessionId) + '&assistantId=' + encodeURIComponent(agentId) + after);
+        if (!res.ok) return;
+        const data = await res.json();
+        const newStatus = data.status;
+        if (newStatus === 'none' || !newStatus) return;
+        if (newStatus !== handoffState) {
+          updateHandoffUI(newStatus);
+        }
+        if (data.messages && data.messages.length > 0) {
+          renderAgentMessages(data.messages);
+        }
+        // Stop polling when terminal
+        if (newStatus === 'resolved' || newStatus === 'timed_out') {
+          stopHandoffPoll();
+        }
+      } catch(e) {}
+    }, 3000);
+  }
+
+  function stopHandoffPoll() {
+    if (handoffPollInterval) {
+      clearInterval(handoffPollInterval);
+      handoffPollInterval = null;
+    }
+  }
+
+  // Restore handoff state on reload (if same session still active)
+  (function restoreHandoffState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(HANDOFF_STORAGE_KEY) || 'null');
+      if (!saved || saved.sessionId !== chatSessionId) return;
+      if (saved.status === 'resolved' || saved.status === 'timed_out') { clearHandoffState(); return; }
+      if (Date.now() - saved.ts > 72 * 3600 * 1000) { clearHandoffState(); return; }
+      // Re-validate immediately then start polling
+      fetch(API_BASE + '/api/handoff/poll?sessionId=' + encodeURIComponent(chatSessionId) + '&assistantId=' + encodeURIComponent(agentId))
+        .then(r => r.json())
+        .then(data => {
+          if (data.status && data.status !== 'none') {
+            updateHandoffUI(data.status);
+            if (data.status === 'waiting' || data.status === 'active') startHandoffPoll();
+          } else {
+            clearHandoffState();
+          }
+        })
+        .catch(() => {});
+    } catch(e) {}
+  })();
 
   // Image upload handling (only wired up when image_search_enabled)
   const imageInput = document.getElementById('ays-image-input');
@@ -959,6 +1114,7 @@
       // Replace lead form with chat UI
       leadFormEl.remove();
       windowEl.appendChild(messagesEl);
+      windowEl.appendChild(handoffFooterEl);
       windowEl.appendChild(imagePreviewArea);
       windowEl.appendChild(formEl);
       if (widgetConfig.show_branding !== false) {
@@ -1126,10 +1282,10 @@
   const ACTION_ICONS = { cart: '🛒', track: '📦', support: '💬' };
 
   const parseMarkers = (raw) => {
-    const result = { text: raw, suggestions: [], products: [], actions: [], booking: null };
+    const result = { text: raw, suggestions: [], products: [], actions: [], booking: null, handoff: false };
 
     // Split at the first occurrence of ANY marker so products/actions render even if suggestions are missing
-    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__', '__AYS_BOOKING__', '__AYS_AGENT_ACTION__'];
+    const MARKERS = ['__AYS_SUGGESTIONS__', '__AYS_PRODUCTS__', '__AYS_ACTIONS__', '__AYS_BOOKING__', '__AYS_AGENT_ACTION__', '__AYS_HANDOFF__'];
     const indices = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
     if (!indices.length) return result;
 
@@ -1176,6 +1332,8 @@
       const bookRaw = tail.substring(bookIdx + '__AYS_BOOKING__'.length);
       try { result.booking = JSON.parse(bookRaw.trim()); } catch(e) {}
     }
+
+    result.handoff = tail.indexOf('__AYS_HANDOFF__') !== -1;
 
     return result;
   };
@@ -1378,6 +1536,16 @@
 
       if (!response.ok) throw new Error("API Error");
 
+      // Check lockout BEFORE reading body — no AI bubble when human is active
+      const isHandoffActive = response.headers.get('X-Handoff-Active') === 'true';
+      if (isHandoffActive) {
+        // Drain body so connection is released, but don't render any AI bubble
+        response.body.cancel().catch(() => {});
+        if (handoffState !== 'waiting' && handoffState !== 'active') updateHandoffUI('waiting');
+        startHandoffPoll();
+        return;
+      }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       const msgEl = addMessage('model', '');
@@ -1414,14 +1582,22 @@
 
       conversation.push({ role: 'assistant', content: parsed.text });
 
+      // Handoff: explicit request detected by server
+      if (parsed.handoff && handoffState !== 'waiting' && handoffState !== 'active') {
+        setTimeout(() => { updateHandoffUI('waiting'); startHandoffPoll(); }, 600);
+      }
+
     } catch (err) {
       console.error("Chat error:", err);
       hideTyping();
       addMessage('model', 'Failed to connect to the agent.');
     } finally {
       isTyping = false;
-      document.getElementById('ays-chat-send').disabled = false;
-      input.focus();
+      // Only re-enable input when not in an active handoff lockout
+      if (handoffState !== 'waiting') {
+        document.getElementById('ays-chat-send').disabled = false;
+        input.focus();
+      }
     }
   });
 

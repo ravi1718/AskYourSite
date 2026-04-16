@@ -41,7 +41,11 @@ export function parseAgentAction(text: string): ActionPayload | null {
 
 /** Strip the agent action marker from text before showing to user */
 export function stripAgentAction(text: string): string {
-  return text.replace(/__AYS_AGENT_ACTION__[\s\S]+?__\/AYS_AGENT_ACTION__/, '').trim();
+  // First, remove complete tag pairs
+  let cleaned = text.replace(/__AYS_AGENT_ACTION__[\s\S]+?__\/AYS_AGENT_ACTION__/g, '');
+  // Also strip any orphaned opening tag (AI omitted the closing tag)
+  cleaned = cleaned.replace(/__AYS_AGENT_ACTION__[\s\S]*$/g, '');
+  return cleaned.trim();
 }
 
 /**

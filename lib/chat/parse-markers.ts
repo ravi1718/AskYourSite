@@ -24,14 +24,15 @@ export interface AysMarkers {
   products: Product[];
   actions: Action[];
   booking: BookingPayload | null;
+  handoff: boolean;
 }
 
 const AYS_MARKER = "__AYS_";
 
 export function parseMarkers(raw: string): AysMarkers {
-  const result: AysMarkers = { text: raw, suggestions: [], products: [], actions: [], booking: null };
+  const result: AysMarkers = { text: raw, suggestions: [], products: [], actions: [], booking: null, handoff: false };
 
-  const MARKERS = ["__AYS_SUGGESTIONS__", "__AYS_PRODUCTS__", "__AYS_ACTIONS__", "__AYS_BOOKING__"] as const;
+  const MARKERS = ["__AYS_SUGGESTIONS__", "__AYS_PRODUCTS__", "__AYS_ACTIONS__", "__AYS_BOOKING__", "__AYS_HANDOFF__"] as const;
   const firstIdx = MARKERS.map(m => raw.indexOf(m)).filter(i => i !== -1);
   if (!firstIdx.length) return result;
 
@@ -74,12 +75,17 @@ export function parseMarkers(raw: string): AysMarkers {
     try { result.actions = JSON.parse(actsRaw.trim()); } catch { /* skip */ }
   }
 
-  // Parse booking — always last
+  // Parse booking
   const bookIdx = tail.indexOf("__AYS_BOOKING__");
   if (bookIdx !== -1) {
-    const bookRaw = tail.substring(bookIdx + "__AYS_BOOKING__".length);
+    const afterBook = tail.substring(bookIdx + "__AYS_BOOKING__".length);
+    const h = afterBook.indexOf("__AYS_HANDOFF__");
+    const bookRaw = h !== -1 ? afterBook.substring(0, h) : afterBook;
     try { result.booking = JSON.parse(bookRaw.trim()); } catch { /* skip */ }
   }
+
+  // Handoff — always last marker
+  result.handoff = tail.indexOf("__AYS_HANDOFF__") !== -1;
 
   return result;
 }

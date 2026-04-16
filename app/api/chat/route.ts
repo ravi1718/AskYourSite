@@ -5,6 +5,8 @@ import { detectBuyingIntent, detectUnanswered, detectFrustration, detectUrgency,
 import { dispatchEvent } from "@/lib/events/dispatch";
 import { detectIndustry, INDUSTRY_GOALS } from "@/lib/agent/industry-detect";
 import { parseAgentAction, stripAgentAction, executeAgentAction } from "@/lib/agent/executor";
+import { detectHumanRequest, evaluateHandoffTriggers } from "@/lib/handoff/detect-triggers";
+import { createHandoffSession } from "@/lib/handoff/create-session";
 
 // In-memory rate limiter: 10 requests per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -60,12 +62,45 @@ export async function POST(req: Request) {
 
     // Use admin client to bypass RLS for embedding retrieval
     const supabase = getSupabaseAdminClient();
-    
+
     // Generate a session ID if not provided (for conversation grouping)
     const chatSessionId = sessionId || crypto.randomUUID();
 
     // Extract the latest user query
     const lastUserMessage = messages[messages.length - 1]?.content;
+
+    // ─── Handoff lockout: skip AI entirely if a human is handling this session ──
+    if (!isPreview && supabase && lastUserMessage) {
+      const { data: activeHandoff } = await supabase
+        .from("handoff_sessions")
+        .select("id, status, claimed_by_user_id")
+        .eq("session_id", chatSessionId)
+        .in("status", ["waiting", "active"])
+        .maybeSingle();
+
+      if (activeHandoff) {
+        await supabase.from("chat_messages").insert({
+          assistant_id: assistantId,
+          session_id: chatSessionId,
+          role: "user",
+          content: lastUserMessage,
+        });
+        await supabase
+          .from("handoff_sessions")
+          .update({ updated_at: new Date().toISOString() })
+          .eq("id", activeHandoff.id);
+        const holdingMsg = activeHandoff.claimed_by_user_id
+          ? "Our team member is with you — they'll respond shortly."
+          : "You're connected — our team will be with you shortly.";
+        return new Response(holdingMsg, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "X-Handoff-Active": "true",
+          },
+        });
+      }
+    }
     let contextDocs = "";
     let productImageMap = "";
     let imageMapRawData: any[] = []; // Raw data for server-side product card injection
@@ -282,6 +317,9 @@ export async function POST(req: Request) {
 
     // Load visitor memory (only in agent mode, non-preview, when visitor_id provided)
     let visitorMemoryPrompt = "";
+    let visitorSentimentAvg: number | null = null;
+    let ownerEmailForHandoff = "";
+    let hasHandoffFeature = false;
     const adminDb = getSupabaseAdminClient();
     if (!isPreview && visitorId && adminDb) {
       const { data: vp } = await adminDb
@@ -292,6 +330,7 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (vp) {
+        visitorSentimentAvg = vp.sentiment_avg || null;
         const isReturning = vp.total_sessions > 1;
         visitorMemoryPrompt = `
 VISITOR MEMORY:
@@ -385,6 +424,16 @@ ${isReturning ? "This is a RETURNING visitor — acknowledge you remember them w
       }
     }
 
+    // ── Handoff feature gate: fetch owner email + plan flags ─────────────────
+    if (!isPreview && assistantData?.user_id && adminDb) {
+      const [emailResult, planResult] = await Promise.all([
+        adminDb.from("profiles").select("email").eq("id", assistantData.user_id).maybeSingle(),
+        adminDb.rpc("get_user_usage", { p_user_id: assistantData.user_id } as any).single(),
+      ]);
+      ownerEmailForHandoff = (emailResult.data as any)?.email ?? "";
+      hasHandoffFeature = (planResult.data as any)?.feature_flags?.human_handoff === true;
+    }
+
     // ── Calendly booking card payload ─────────────────────────────────────────
     // Build the payload whenever Calendly is configured + plan allows it.
     // Whether to actually show the card is gated later on the AI's response text,
@@ -422,6 +471,11 @@ ${isReturning ? "This is a RETURNING visitor — acknowledge you remember them w
     // Detect sentiment from the last user message
     const isFrustrated = !isPreview && lastUserMessage ? detectFrustration(lastUserMessage) : false;
     const isUrgent = !isPreview && lastUserMessage ? detectUrgency(lastUserMessage) : false;
+
+    // Detect explicit handoff request (synchronous, before Gemini call)
+    const isExplicitHandoff = !isPreview && lastUserMessage
+      ? detectHumanRequest(lastUserMessage)
+      : false;
 
     const INTENT_RETENTION_RULES = `
 INTENT RETENTION RULES:
@@ -741,8 +795,9 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
             if (pendingAgentAction) {
               pendingAgentAction.data.session_id = chatSessionId;
               pendingAgentAction.data.assistant_id = assistantId;
-              fullAssistantResponse = stripAgentAction(fullAssistantResponse);
             }
+            // Always strip — even if JSON parse failed (AI may omit closing tag)
+            fullAssistantResponse = stripAgentAction(fullAssistantResponse);
           }
 
           // Stream the clean response to the client
@@ -788,6 +843,16 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
           }
           suffix += `__AYS_SUGGESTIONS__${JSON.stringify(suggestions)}`;
 
+          // Signal handoff to widget — explicit request OR agent fired assign_human_agent
+          const agentWantsHandoff = pendingAgentAction?.action === 'assign_human_agent';
+          const handoffSessionWillBeCreated =
+            (isExplicitHandoff || agentWantsHandoff) &&
+            hasHandoffFeature &&
+            assistantData?.widget_config?.humanHandoffEnabled === true;
+          if (handoffSessionWillBeCreated) {
+            suffix += `__AYS_HANDOFF__`;
+          }
+
           // Add product cards if image map was populated (works in Playground too)
           if (imageMapRawData.length > 0) {
             const products = imageMapRawData.slice(0, 4).map((m: any) => ({
@@ -823,7 +888,9 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
           const aiWantsToShowCalendar = AI_CALENDAR_SIGNALS.some((sig) =>
             fullAssistantResponse.toLowerCase().includes(sig)
           );
-          if (bookingPayload && aiWantsToShowCalendar) {
+          // Suppress Calendly when user asked for a human — don't open booking while connecting to agent
+          const handoffRequested = isExplicitHandoff || pendingAgentAction?.action === 'assign_human_agent';
+          if (bookingPayload && aiWantsToShowCalendar && !handoffRequested) {
             suffix += `__AYS_BOOKING__${JSON.stringify(bookingPayload)}`;
           }
 
@@ -897,6 +964,48 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
                 sessionId: chatSessionId,
                 timestamp: new Date().toISOString(),
               });
+            }
+
+            // Non-blocking handoff trigger evaluation (Business plan + toggle enabled)
+            if (adminDb && assistantData?.widget_config?.humanHandoffEnabled && hasHandoffFeature) {
+              // Path A: agent mode fired assign_human_agent — create session directly, skip eval
+              if (pendingAgentAction?.action === 'assign_human_agent') {
+                void createHandoffSession({
+                  adminDb: adminDb!,
+                  ai,
+                  assistantId,
+                  sessionId: chatSessionId,
+                  visitorId: visitorId || null,
+                  triggerReason: "explicit_request",
+                  triggerMessage: lastUserMessage,
+                  ownerId,
+                  ownerEmail: ownerEmailForHandoff,
+                  assistantName: assistantData.name || "Assistant",
+                }).catch((err) => console.error("[Handoff] agent-action create failed:", err));
+              } else {
+                // Path B: sentiment / keyword / streak triggers
+                void evaluateHandoffTriggers(adminDb, {
+                  sessionId: chatSessionId,
+                  userMessage: lastUserMessage,
+                  botResponse: cleanResponse,
+                  sentimentScore,
+                  sentimentAvg: visitorSentimentAvg,
+                }).then((result) => {
+                  if (!result.triggered) return;
+                  return createHandoffSession({
+                    adminDb: adminDb!,
+                    ai,
+                    assistantId,
+                    sessionId: chatSessionId,
+                    visitorId: visitorId || null,
+                    triggerReason: result.reason,
+                    triggerMessage: lastUserMessage,
+                    ownerId,
+                    ownerEmail: ownerEmailForHandoff,
+                    assistantName: assistantData.name || "Assistant",
+                  });
+                }).catch((err) => console.error("[Handoff] eval failed:", err));
+              }
             }
           }
         }

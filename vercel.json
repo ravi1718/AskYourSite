@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/outbound",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/handoff-timeout",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

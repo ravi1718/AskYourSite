@@ -3,7 +3,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { Bot, BarChart2, Library, Settings, Users, Puzzle, Zap, BarChart3, UserRound, Lock } from "lucide-react";
+import { Bot, BarChart2, Library, Settings, Users, Puzzle, Zap, BarChart3, UserRound, Lock, Headphones } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getWorkspaceContext } from "@/lib/workspace";
@@ -65,6 +65,27 @@ export default async function DashboardLayout({
   const isTrialing = subscriptionStatus === "trialing";
   const trialDays  = isTrialing ? daysLeft(trialEndsAt) : 0;
   const hasTeamAccess = planCode === "pro" || planCode === "business";
+  const hasHandoffAccess = featureFlags.human_handoff === true;
+
+  // Fetch waiting handoff count for inbox badge (Business plan only)
+  let waitingHandoffCount = 0;
+  if (hasHandoffAccess) {
+    const admin = getSupabaseAdminClient();
+    if (admin) {
+      const { data: assistantIds } = await admin
+        .from("assistants")
+        .select("id")
+        .eq("user_id", effectiveUserId);
+      if (assistantIds && assistantIds.length > 0) {
+        const { count } = await admin
+          .from("handoff_sessions")
+          .select("id", { count: "exact", head: true })
+          .in("assistant_id", assistantIds.map((a: any) => a.id))
+          .eq("status", "waiting");
+        waitingHandoffCount = count ?? 0;
+      }
+    }
+  }
 
   return (
     <div className="flex min-h-screen bg-background text-text">
@@ -130,6 +151,23 @@ export default async function DashboardLayout({
             <Zap className="h-4 w-4" />
             Agent Logs
           </Link>
+          {hasHandoffAccess ? (
+            <Link href="/dashboard/inbox" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
+              <Headphones className="h-4 w-4" />
+              Inbox
+              {waitingHandoffCount > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                  {waitingHandoffCount > 9 ? "9+" : waitingHandoffCount}
+                </span>
+              )}
+            </Link>
+          ) : (
+            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 cursor-not-allowed select-none">
+              <Headphones className="h-4 w-4" />
+              Inbox
+              <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">BIZ</span>
+            </div>
+          )}
           <Link href="/dashboard/agent-performance" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
             <BarChart3 className="h-4 w-4" />
             Performance

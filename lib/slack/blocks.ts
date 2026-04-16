@@ -256,6 +256,65 @@ export function sentimentBlock(params: {
   ];
 }
 
+// ─── Human Handoff Alert ─────────────────────────────────────────────────────
+
+export function handoffBlock(params: {
+  botName: string;
+  triggerReason: string;
+  visitorName: string | null;
+  visitorEmail: string | null;
+  aiSummary: string | null;
+  joinUrl: string;
+  sessionId: string;
+}): object[] {
+  const { botName, triggerReason, visitorName, visitorEmail, aiSummary, joinUrl } = params;
+
+  const TRIGGER_LABELS: Record<string, string> = {
+    explicit_request: "Visitor explicitly requested a human agent",
+    urgency: "Urgent request detected",
+    frustration: "High frustration level detected",
+    unanswered_streak: "AI couldn't answer 2+ questions in a row",
+    repeated_question: "Visitor repeated the same question 3 times",
+  };
+  const triggerLabel = TRIGGER_LABELS[triggerReason] ?? triggerReason;
+  const visitorLabel = visitorName
+    ? `${visitorName}${visitorEmail ? ` (${visitorEmail})` : ""}`
+    : visitorEmail ?? "Anonymous visitor";
+
+  return [
+    {
+      type: "section",
+      text: { type: "mrkdwn", text: `*🟠 Human Support Requested — ${botName}*` },
+    },
+    {
+      type: "section",
+      fields: [
+        { type: "mrkdwn", text: `*Visitor:*\n${visitorLabel}` },
+        { type: "mrkdwn", text: `*Reason:*\n${triggerLabel}` },
+      ],
+    },
+    ...(aiSummary
+      ? [
+          {
+            type: "section",
+            text: { type: "mrkdwn", text: `*Summary:*\n${aiSummary}` },
+          },
+        ]
+      : []),
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "Join Conversation →" },
+          url: joinUrl,
+          style: "danger",
+        },
+      ],
+    },
+  ];
+}
+
 // ─── Test Notification ────────────────────────────────────────────────────────
 
 export function testBlock(botName: string, enabledAlerts: string[]): object[] {

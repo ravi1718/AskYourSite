@@ -60,6 +60,18 @@ export type AysEvent = {
     sessionId: string;
     timestamp: string;
   };
+  "handoff.created": {
+    userId: string;
+    botId: string;
+    botName: string;
+    sessionId: string;
+    triggerReason: string;
+    visitorName: string | null;
+    visitorEmail: string | null;
+    aiSummary: string | null;
+    joinUrl: string;
+    timestamp: string;
+  };
 };
 
 export type EventName = keyof AysEvent;

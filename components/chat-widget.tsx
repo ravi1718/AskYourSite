@@ -59,7 +59,7 @@ function ActionButtons({ actions }: { actions: Action[] }) {
 }
 
 interface Message {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "agent" | "system";
   content: string;
 }
 
@@ -99,6 +99,12 @@ export function ChatWidget({
   const exitShownRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Handoff state ────────────────────────────────────────────────────────────
+  const [handoffActive, setHandoffActive] = useState(false);
+  const handoffPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const handoffLastMsgTimeRef = useRef<string | null>(null);
+  const handoffSeenIdsRef = useRef<Set<string>>(new Set());
 
   // Persistent session ID (stored in localStorage so returning visitors resume history)
   const [sessionId] = useState(() => {
@@ -159,6 +165,78 @@ export function ChatWidget({
     const timer = setTimeout(() => setNotifVisible(true), notifDelay * 1000);
     return () => clearTimeout(timer);
   }, [isOpen, notifMessages.length, notifDelay]);
+
+  // ── Handoff polling ─────────────────────────────────────────────────────────
+  const startHandoffPoll = useCallback(() => {
+    if (handoffPollRef.current) return; // already running
+    handoffPollRef.current = setInterval(async () => {
+      try {
+        const params = new URLSearchParams({
+          sessionId,
+          assistantId: assistantId ?? "",
+        });
+        if (handoffLastMsgTimeRef.current) {
+          params.set("after", handoffLastMsgTimeRef.current);
+        }
+        const res = await fetch(`/api/handoff/poll?${params}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.status || data.status === "none") return;
+
+        // Stop when conversation is closed
+        if (data.status === "resolved" || data.status === "timed_out") {
+          if (handoffPollRef.current) {
+            clearInterval(handoffPollRef.current);
+            handoffPollRef.current = null;
+          }
+          setHandoffActive(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "system" as const,
+              content:
+                data.status === "resolved"
+                  ? "Conversation resolved. AI assistant is back online."
+                  : "No agent was available. AI assistant is back online.",
+            },
+          ]);
+          return;
+        }
+
+        // Render new agent/system messages
+        if (Array.isArray(data.messages) && data.messages.length > 0) {
+          // Always advance cursor regardless of dedup
+          const lastMsg = data.messages[data.messages.length - 1];
+          if (lastMsg?.created_at) handoffLastMsgTimeRef.current = lastMsg.created_at;
+
+          const incoming = data.messages.filter(
+            (m: { role: string; content: string; created_at: string }) =>
+              (m.role === "agent" || m.role === "system") &&
+              !handoffSeenIdsRef.current.has(m.created_at + "|" + m.content)
+          );
+          if (incoming.length > 0) {
+            incoming.forEach((m: { role: string; content: string; created_at: string }) =>
+              handoffSeenIdsRef.current.add(m.created_at + "|" + m.content)
+            );
+            setMessages((prev) => [
+              ...prev,
+              ...incoming.map((m: { role: string; content: string }) => ({
+                role: m.role as "agent" | "system",
+                content: m.content,
+              })),
+            ]);
+          }
+        }
+      } catch (err) { console.error("[Handoff poll]", err); }
+    }, 3000);
+  }, [sessionId, assistantId]);
+
+  // Cleanup poll on unmount
+  useEffect(() => {
+    return () => {
+      if (handoffPollRef.current) clearInterval(handoffPollRef.current);
+    };
+  }, []);
 
   // Lead capture state
   const [leadCaptured, setLeadCaptured] = useState(false);
@@ -357,6 +435,16 @@ export function ChatWidget({
 
       if (!res.ok || !res.body) throw new Error("Chat request failed");
 
+      // ── Handoff lockout: server skipped AI, human is handling this session ────
+      const isHandoffLockout = res.headers.get("X-Handoff-Active") === "true";
+      if (isHandoffLockout) {
+        // Remove the optimistic "..." placeholder and don't show an AI bubble
+        setMessages((prev) => prev.slice(0, -1));
+        if (!handoffActive) setHandoffActive(true);
+        startHandoffPoll(); // startHandoffPoll guards against double-start
+        return;
+      }
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullResponse = "";
@@ -393,6 +481,11 @@ export function ChatWidget({
       if (parsed.products.length > 0) setProducts(parsed.products);
       if (parsed.actions.length > 0) setActions(parsed.actions);
       if (parsed.booking) setBooking(parsed.booking);
+      // Start handoff polling so agent replies appear here in real time
+      if (parsed.handoff && !handoffActive) {
+        setHandoffActive(true);
+        startHandoffPoll();
+      }
     } catch (err) {
       setMessages((prev) => {
         const updated = [...prev];
@@ -587,7 +680,25 @@ export function ChatWidget({
             const isLast = idx === messages.length - 1;
             return (
               <div key={idx}>
-                {msg.role === "user" ? (
+                {msg.role === "system" ? (
+                  /* System / handoff status messages — centered */
+                  <div className="flex justify-center my-1">
+                    <span className="rounded-full px-3 py-1 text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20">
+                      {msg.content}
+                    </span>
+                  </div>
+                ) : msg.role === "agent" ? (
+                  /* Human agent reply — green tinted, left aligned */
+                  <div className="flex justify-start gap-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-emerald-400 px-1">Support Agent</span>
+                      <div className="rounded-2xl rounded-tl-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed"
+                        style={{ backgroundColor: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.25)", color: "#d1fae5" }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  </div>
+                ) : msg.role === "user" ? (
                   <div className="flex justify-end">
                     <div className="rounded-2xl rounded-tr-sm px-4 py-2.5 text-sm max-w-[85%] leading-relaxed" style={{ backgroundColor: `${widgetCfg.primaryColor}33`, borderColor: `${widgetCfg.primaryColor}55`, border: "1px solid", color: widgetCfg.textColor }}>
                       {(msg as any).imagePreview && (
