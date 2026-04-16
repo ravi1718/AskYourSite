@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Send,
   X,
-  Star,
 } from "lucide-react";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -42,6 +41,171 @@ const CRAWL_STEPS = [
   "Building knowledge base...",
   "AI is ready!",
 ];
+
+/* ─── Particle Network Background ───────────────────────── */
+function WarpGrid() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouse = useRef({ x: -9999, y: -9999 });
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const CELL = 70;       // grid cell size in px
+    const RADIUS = 190;    // mouse influence radius
+    const STRENGTH = 42;   // max displacement in px
+    const LERP = 0.10;     // spring speed (lower = more elastic)
+
+    type Node = { dx: number; dy: number };
+    let cols = 0;
+    let rows = 0;
+    let grid: Node[][] = []; // grid[row][col]
+
+    function resize() {
+      canvas!.width = canvas!.offsetWidth;
+      canvas!.height = canvas!.offsetHeight;
+      cols = Math.ceil(canvas!.width / CELL) + 2;
+      rows = Math.ceil(canvas!.height / CELL) + 2;
+      // Preserve existing displacement or init to zero
+      grid = Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => {
+          const prev = grid[r]?.[c];
+          return prev ?? { dx: 0, dy: 0 };
+        })
+      );
+    }
+
+    function draw() {
+      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
+
+      const mx = mouse.current.x;
+      const my = mouse.current.y;
+      const r2 = RADIUS * RADIUS;
+
+      // Update node displacements with spring physics
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const nx = c * CELL;
+          const ny = r * CELL;
+          const ddx = nx - mx;
+          const ddy = ny - my;
+          const dist2 = ddx * ddx + ddy * ddy;
+
+          // Gaussian repulsion from mouse
+          let tdx = 0, tdy = 0;
+          if (dist2 < r2 * 3) {
+            const dist = Math.sqrt(dist2);
+            const gauss = Math.exp(-dist2 / (r2 * 0.45));
+            const force = STRENGTH * gauss;
+            if (dist > 0) {
+              tdx = (ddx / dist) * force;
+              tdy = (ddy / dist) * force;
+            }
+          }
+
+          // Lerp current → target (spring return)
+          const node = grid[r][c];
+          node.dx += (tdx - node.dx) * LERP;
+          node.dy += (tdy - node.dy) * LERP;
+        }
+      }
+
+      // Helper: displaced node position
+      const nx = (c: number, r: number) => c * CELL + grid[r][c].dx;
+      const ny = (c: number, r: number) => r * CELL + grid[r][c].dy;
+
+      // Draw horizontal lines
+      for (let r = 0; r < rows; r++) {
+        // Find max displacement in this row to adjust line brightness
+        let maxDisp = 0;
+        for (let c = 0; c < cols; c++) {
+          const d = Math.sqrt(grid[r][c].dx ** 2 + grid[r][c].dy ** 2);
+          if (d > maxDisp) maxDisp = d;
+        }
+        const bright = Math.min(maxDisp / STRENGTH, 1);
+        const alpha = 0.055 + bright * 0.10;
+
+        ctx!.beginPath();
+        ctx!.strokeStyle = `rgba(0, 217, 255, ${alpha})`;
+        ctx!.lineWidth = 0.75;
+        ctx!.moveTo(nx(0, r), ny(0, r));
+        for (let c = 1; c < cols; c++) {
+          ctx!.lineTo(nx(c, r), ny(c, r));
+        }
+        ctx!.stroke();
+      }
+
+      // Draw vertical lines
+      for (let c = 0; c < cols; c++) {
+        let maxDisp = 0;
+        for (let r = 0; r < rows; r++) {
+          const d = Math.sqrt(grid[r][c].dx ** 2 + grid[r][c].dy ** 2);
+          if (d > maxDisp) maxDisp = d;
+        }
+        const bright = Math.min(maxDisp / STRENGTH, 1);
+        const alpha = 0.055 + bright * 0.10;
+
+        ctx!.beginPath();
+        ctx!.strokeStyle = `rgba(0, 217, 255, ${alpha})`;
+        ctx!.lineWidth = 0.75;
+        ctx!.moveTo(nx(c, 0), ny(c, 0));
+        for (let r = 1; r < rows; r++) {
+          ctx!.lineTo(nx(c, r), ny(c, r));
+        }
+        ctx!.stroke();
+      }
+
+      // Glowing cursor dot at mouse position
+      if (mx > 0 && my > 0 && mx < canvas!.width && my < canvas!.height) {
+        const grad = ctx!.createRadialGradient(mx, my, 0, mx, my, 48);
+        grad.addColorStop(0, "rgba(0, 217, 255, 0.18)");
+        grad.addColorStop(1, "rgba(0, 217, 255, 0)");
+        ctx!.beginPath();
+        ctx!.arc(mx, my, 48, 0, Math.PI * 2);
+        ctx!.fillStyle = grad;
+        ctx!.fill();
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = canvas!.getBoundingClientRect();
+      mouse.current.x = e.clientX - rect.left;
+      mouse.current.y = e.clientY - rect.top;
+    };
+    const onMouseLeave = () => {
+      mouse.current.x = -9999;
+      mouse.current.y = -9999;
+    };
+
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    window.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseleave", onMouseLeave);
+
+    resize();
+    draw();
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("mouseleave", onMouseLeave);
+      ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="pointer-events-none absolute inset-0 w-full h-full"
+    />
+  );
+}
 
 /* ─── 3D Widget Mockup (CSS-based) ──────────────────────── */
 function HeroVisual() {
@@ -402,8 +566,8 @@ export function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-black">
-      {/* Subtle dot grid */}
-      <div className="pointer-events-none absolute inset-0 dot-grid opacity-100" />
+      {/* Interactive warp grid */}
+      <WarpGrid />
 
       {/* Content */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-8 pt-28 pb-20">
@@ -494,25 +658,6 @@ export function HeroSection() {
               ))}
             </motion.div>
 
-            {/* Social proof */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.55 }}
-              className="flex items-center gap-3"
-            >
-              <div className="flex -space-x-2">
-                {["bg-rose-500","bg-amber-500","bg-emerald-500","bg-sky-500","bg-violet-500"].map((c, i) => (
-                  <div key={i} className={`h-7 w-7 rounded-full ${c} border-2 border-black`} />
-                ))}
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="h-3 w-3 fill-amber-400 text-amber-400" />)}
-                </div>
-                <p className="text-xs text-[#555]">Trusted by 2,400+ companies</p>
-              </div>
-            </motion.div>
           </div>
 
           {/* Right column — 3D Widget Visual */}
