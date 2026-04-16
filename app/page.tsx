@@ -57,6 +57,7 @@ function Navbar() {
     { label: "Integrations", href: "#integrations" },
     { label: "Pricing", href: "#pricing" },
     { label: "Docs", href: "/docs" },
+    { label: "Contact", href: "/contact" },
   ];
 
   return (
@@ -286,7 +287,7 @@ function Footer() {
               { label: "About", href: "#" },
               { label: "Blog", href: "#" },
               { label: "Docs", href: "/docs" },
-              { label: "Support", href: "#" },
+              { label: "Contact", href: "/contact" },
             ],
           },
           {
