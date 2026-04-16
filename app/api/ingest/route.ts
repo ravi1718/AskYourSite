@@ -219,6 +219,13 @@ export async function POST(req: Request) {
 
     console.log(`[Ingest] Complete: ${processed}/${chunks.length} text chunks + ${imagesProcessed} images stored`);
 
+    // Bump assistant status from 'draft' → 'training' once it has real content
+    await supabase
+      .from("assistants")
+      .update({ status: "training" })
+      .eq("id", assistantId)
+      .eq("status", "draft");
+
     return NextResponse.json({
       success: true,
       chunksProcessed: processed,

@@ -3,7 +3,7 @@ import Image from "next/image";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { Bot, BarChart2, Library, Settings, Users, Puzzle, Zap, BarChart3, UserRound, Lock, Headphones } from "lucide-react";
+import { UserRound } from "lucide-react";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getWorkspaceContext } from "@/lib/workspace";
@@ -12,6 +12,7 @@ import { PageTransition } from "@/components/page-transition";
 import { InactivityGuard } from "@/components/inactivity-guard";
 import { SignupTracker } from "@/components/signup-tracker";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 
 function daysLeft(end: string | null): number {
   if (!end) return 0;
@@ -125,88 +126,13 @@ export default async function DashboardLayout({
           </div>
         )}
 
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-          <div className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Platform
-          </div>
-          <Link href="/dashboard" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-white bg-primary/10 transition-colors">
-            <BarChart2 className="h-4 w-4 text-primary" />
-            Analytics
-          </Link>
-          <Link href="/dashboard/assistants" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-            <Bot className="h-4 w-4" />
-            Assistants
-          </Link>
-          <Link href="/dashboard/knowledge" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-            <Library className="h-4 w-4" />
-            Knowledge Base
-          </Link>
-          {featureFlags.lead_capture && (
-            <Link href="/dashboard/leads" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-              <Users className="h-4 w-4" />
-              Leads
-            </Link>
-          )}
-          <Link href="/dashboard/agent-logs" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-            <Zap className="h-4 w-4" />
-            Agent Logs
-          </Link>
-          {hasHandoffAccess ? (
-            <Link href="/dashboard/inbox" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-              <Headphones className="h-4 w-4" />
-              Inbox
-              {waitingHandoffCount > 0 && (
-                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                  {waitingHandoffCount > 9 ? "9+" : waitingHandoffCount}
-                </span>
-              )}
-            </Link>
-          ) : (
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 cursor-not-allowed select-none">
-              <Headphones className="h-4 w-4" />
-              Inbox
-              <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">BIZ</span>
-            </div>
-          )}
-          <Link href="/dashboard/agent-performance" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-            <BarChart3 className="h-4 w-4" />
-            Performance
-          </Link>
-          <Link href="/dashboard/integrations" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-            <Puzzle className="h-4 w-4" />
-            Integrations
-          </Link>
-
-          {/* Team — visible to all: admins (manage) and team members (read-only view) */}
-          {isTeamMember ? (
-            <Link href="/dashboard/team" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-              <UserRound className="h-4 w-4" />
-              Team
-            </Link>
-          ) : hasTeamAccess ? (
-            <Link href="/dashboard/team" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-              <UserRound className="h-4 w-4" />
-              Team
-            </Link>
-          ) : (
-            <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 cursor-not-allowed select-none">
-              <Lock className="h-4 w-4" />
-              Team
-              <span className="ml-auto text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">PRO</span>
-            </div>
-          )}
-
-          <div className="mt-8 mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Account
-          </div>
-          {/* Hide settings when viewing team workspace; show when personal override is active */}
-          {(!isTeamMember) && (
-            <Link href="/dashboard/settings" className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-white transition-colors">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          )}
-        </nav>
+        <SidebarNav
+          featureFlags={featureFlags}
+          hasTeamAccess={hasTeamAccess}
+          hasHandoffAccess={hasHandoffAccess}
+          waitingHandoffCount={waitingHandoffCount}
+          isTeamMember={isTeamMember}
+        />
       </aside>
 
       {/* Main Content Area */}

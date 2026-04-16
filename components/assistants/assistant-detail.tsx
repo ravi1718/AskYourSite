@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { AYS_MARKER, parseMarkers, type BookingPayload } from "@/lib/chat/parse-markers";
 import ReactMarkdown from "react-markdown";
-import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck, Zap, GitBranch } from "lucide-react";
+import { Bot, Check, Code, Copy, Globe, Paperclip, RefreshCcw, Send, Settings, Paintbrush, Upload, Save, X, FileText, MessageSquareText, ArrowLeft, ShieldCheck, Zap, GitBranch, Plus, Minus } from "lucide-react";
 import { AgentTab } from "./agent-tab";
 import { WorkflowTab } from "./workflow-tab";
 import { Button } from "@/components/ui/button";
@@ -167,6 +167,12 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
   const [scrapeResult, setScrapeResult] = useState<string | null>(null);
   const [crawlProgress, setCrawlProgress] = useState<string | null>(null);
 
+  // Two-phase URL training state
+  interface DiscoveredPage { url: string; title: string; wordCount: number; markdown: string; }
+  const [discoveredPages, setDiscoveredPages] = useState<DiscoveredPage[]>([]);
+  const [selectedPageUrls, setSelectedPageUrls] = useState<Set<string>>(new Set());
+  const [crawlPhase, setCrawlPhase] = useState<"idle" | "discovering" | "selecting" | "training">("idle");
+
   // Multimodal Data ingestion state
   const [plainText, setPlainText] = useState("");
   const [isIngestingText, setIsIngestingText] = useState(false);
@@ -270,79 +276,99 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
     setTimeout(() => setCopiedBlock(null), 2000);
   };
 
-  const handleScrapeAndIngest = async () => {
+  const handleDiscover = async () => {
     if (!scrapeUrl) return;
+    setCrawlPhase("discovering");
     setIsScraping(true);
     setScrapeResult(null);
-    setCrawlProgress("Starting full-site crawl...");
+    setCrawlProgress("Crawling website — discovering all pages (this may take 1-2 minutes)...");
 
     try {
-      // 1. Crawl the entire website (all pages)
-      setCrawlProgress("Crawling website — discovering all pages (this may take 1-2 minutes)...");
       const crawlRes = await fetch("/api/crawl", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: scrapeUrl })
       });
       const crawlData = await crawlRes.json();
-      
+
       if (!crawlRes.ok || !crawlData.success) {
         throw new Error(crawlData.error || "Failed to crawl website");
       }
 
-      const pages = crawlData.pages || [];
-      setCrawlProgress(`Discovered ${pages.length} page${pages.length !== 1 ? 's' : ''}. Starting training...`);
+      const pages: DiscoveredPage[] = (crawlData.pages || []).map((p: any) => ({
+        url: p.url,
+        title: p.metadata?.title || p.url,
+        wordCount: p.markdown ? p.markdown.split(/\s+/).length : 0,
+        markdown: p.markdown || "",
+      }));
 
       if (pages.length === 0) {
         throw new Error("No pages with content found on the website");
       }
 
-      // 2. Ingest each page into pgvector
-      let totalChunks = 0;
-      let pagesProcessed = 0;
-      const errors: string[] = [];
-
-      for (const page of pages) {
-        pagesProcessed++;
-        setCrawlProgress(`Training on page ${pagesProcessed} of ${pages.length}: ${page.url}`);
-
-        try {
-          const ingestRes = await fetch("/api/ingest", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              markdown: page.markdown,
-              assistantId: assistant.id,
-              sourceUrl: page.url
-            })
-          });
-          const ingestData = await ingestRes.json();
-          
-          if (!ingestRes.ok || !ingestData.success) {
-            errors.push(`${page.url}: ${ingestData.error || "Failed to ingest"}`);
-            continue;
-          }
-
-          totalChunks += ingestData.chunksProcessed || 0;
-        } catch (err: any) {
-          errors.push(`${page.url}: ${err.message}`);
-        }
-      }
-
-      if (totalChunks === 0 && errors.length > 0) {
-        throw new Error(`Failed to process any pages. Errors: ${errors.join("; ")}`);
-      }
-
-      const errorSuffix = errors.length > 0 ? ` (${errors.length} page${errors.length !== 1 ? 's' : ''} failed)` : "";
-      setScrapeResult(`Successfully trained on ${totalChunks} data chunks from ${pagesProcessed - errors.length} pages${errorSuffix}.`);
+      setDiscoveredPages(pages);
+      setSelectedPageUrls(new Set(pages.map((p) => p.url)));
+      setCrawlPhase("selecting");
       setCrawlProgress(null);
-      router.refresh();
     } catch (err: any) {
       setScrapeResult(`Error: ${err.message}`);
+      setCrawlPhase("idle");
       setCrawlProgress(null);
     } finally {
       setIsScraping(false);
     }
+  };
+
+  const handleTrainSelected = async () => {
+    const pagesToTrain = discoveredPages.filter((p) => selectedPageUrls.has(p.url));
+    if (pagesToTrain.length === 0) return;
+
+    setCrawlPhase("training");
+    setScrapeResult(null);
+
+    let totalChunks = 0;
+    let pagesProcessed = 0;
+    const errors: string[] = [];
+
+    for (const page of pagesToTrain) {
+      pagesProcessed++;
+      setCrawlProgress(`Training on page ${pagesProcessed} of ${pagesToTrain.length}: ${page.url}`);
+
+      try {
+        const ingestRes = await fetch("/api/ingest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            markdown: page.markdown,
+            assistantId: assistant.id,
+            sourceUrl: page.url
+          })
+        });
+        const ingestData = await ingestRes.json();
+
+        if (!ingestRes.ok || !ingestData.success) {
+          errors.push(`${page.url}: ${ingestData.error || "Failed to ingest"}`);
+          continue;
+        }
+
+        totalChunks += ingestData.chunksProcessed || 0;
+      } catch (err: any) {
+        errors.push(`${page.url}: ${err.message}`);
+      }
+    }
+
+    if (totalChunks === 0 && errors.length > 0) {
+      setScrapeResult(`Error: Failed to process any pages. Errors: ${errors.join("; ")}`);
+    } else {
+      const errorSuffix = errors.length > 0 ? ` (${errors.length} page${errors.length !== 1 ? "s" : ""} failed)` : "";
+      setScrapeResult(`Successfully trained on ${totalChunks} data chunks from ${pagesProcessed - errors.length} pages${errorSuffix}.`);
+      router.refresh();
+    }
+
+    setDiscoveredPages([]);
+    setSelectedPageUrls(new Set());
+    setCrawlPhase("idle");
+    setCrawlProgress(null);
   };
 
   const handleTextIngest = async () => {
@@ -875,24 +901,102 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                   <label className="text-sm font-semibold text-white block mb-2 flex items-center gap-2">
                     <Globe className="h-4 w-4 text-primary" /> Target Website URL
                   </label>
-                  <p className="text-xs text-slate-400 mb-3">Crawl and vectorize an entire website automatically using Firecrawl.</p>
+                  <p className="text-xs text-slate-400 mb-3">Discover all pages on your website, then choose which ones to train the agent on.</p>
                   <div className="flex gap-3">
                     <input
                       type="url"
                       value={scrapeUrl}
-                      onChange={(e) => setScrapeUrl(e.target.value)}
+                      onChange={(e) => { setScrapeUrl(e.target.value); if (crawlPhase === "selecting") { setDiscoveredPages([]); setSelectedPageUrls(new Set()); setCrawlPhase("idle"); } }}
                       placeholder="https://example.com"
-                      className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 shadow-inner"
+                      disabled={crawlPhase === "discovering" || crawlPhase === "training"}
+                      className="flex-1 bg-background border border-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 shadow-inner disabled:opacity-50"
                     />
-                    <Button 
-                      onClick={handleScrapeAndIngest}
-                      disabled={isScraping || !scrapeUrl}
-                      className="bg-primary hover:bg-blue-500 text-white min-w-[140px] gap-2 shadow-glow"
+                    <Button
+                      onClick={handleDiscover}
+                      disabled={crawlPhase !== "idle" || !scrapeUrl}
+                      className="bg-primary hover:bg-blue-500 text-white min-w-[160px] gap-2 shadow-glow"
                     >
-                      {isScraping ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-                      {isScraping ? "Crawling..." : "Crawl & Train"}
+                      {crawlPhase === "discovering" ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+                      {crawlPhase === "discovering" ? "Discovering..." : "Discover Pages"}
                     </Button>
                   </div>
+
+                  {/* Page selection panel */}
+                  {crawlPhase === "selecting" && discoveredPages.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-border overflow-hidden">
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3 bg-surface border-b border-border">
+                        <span className="text-sm font-medium text-white">
+                          Found {discoveredPages.length} page{discoveredPages.length !== 1 ? "s" : ""}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-slate-400">{selectedPageUrls.size} of {discoveredPages.length} selected</span>
+                          <button
+                            onClick={() => setSelectedPageUrls(new Set(discoveredPages.map((p) => p.url)))}
+                            className="text-xs text-primary hover:underline"
+                          >Select all</button>
+                          <button
+                            onClick={() => setSelectedPageUrls(new Set())}
+                            className="text-xs text-slate-400 hover:text-white"
+                          >Deselect all</button>
+                        </div>
+                      </div>
+
+                      {/* Page list */}
+                      <div className="max-h-64 overflow-y-auto divide-y divide-border">
+                        {discoveredPages.map((page) => {
+                          const selected = selectedPageUrls.has(page.url);
+                          return (
+                            <button
+                              key={page.url}
+                              onClick={() => setSelectedPageUrls((prev) => {
+                                const next = new Set(prev);
+                                selected ? next.delete(page.url) : next.add(page.url);
+                                return next;
+                              })}
+                              className={cn(
+                                "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors",
+                                selected ? "bg-primary/5 hover:bg-primary/10" : "bg-background hover:bg-surface opacity-50"
+                              )}
+                            >
+                              <span className={cn(
+                                "flex-shrink-0 h-5 w-5 rounded-md border flex items-center justify-center",
+                                selected ? "border-primary/50 bg-primary/20 text-primary" : "border-border text-slate-500"
+                              )}>
+                                {selected ? <Plus className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                              </span>
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-sm text-white truncate">{page.title !== page.url ? page.title : (() => { try { return new URL(page.url).pathname || "/"; } catch { return page.url; } })()}</span>
+                                <span className="block text-xs text-slate-500 truncate">{page.url}</span>
+                              </span>
+                              <span className="flex-shrink-0 text-xs text-slate-500">{page.wordCount.toLocaleString()} words</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Train button */}
+                      <div className="px-4 py-3 bg-surface border-t border-border flex items-center justify-between">
+                        <span className="text-xs text-slate-400">{selectedPageUrls.size} page{selectedPageUrls.size !== 1 ? "s" : ""} selected for training</span>
+                        <Button
+                          onClick={handleTrainSelected}
+                          disabled={selectedPageUrls.size === 0}
+                          className="bg-primary hover:bg-blue-500 text-white gap-2 shadow-glow"
+                        >
+                          <Check className="h-4 w-4" />
+                          Train {selectedPageUrls.size} Page{selectedPageUrls.size !== 1 ? "s" : ""}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Training progress */}
+                  {crawlPhase === "training" && crawlProgress && (
+                    <div className="mt-4 px-4 py-3 rounded-xl border bg-primary/10 border-primary/20 text-primary text-sm flex items-center gap-2 animate-pulse">
+                      <RefreshCcw className="h-4 w-4 animate-spin flex-shrink-0" />
+                      {crawlProgress}
+                    </div>
+                  )}
                 </div>
 
                 <hr className="border-border" />
@@ -951,26 +1055,17 @@ export function AssistantDetailClient({ assistant, sources, userId, imageSearchE
                 </div>
 
                 {/* Status Messages */}
-                {(crawlProgress || scrapeResult) && (
+                {scrapeResult && (
                   <div className="pt-2 border-t border-border mt-6">
-                    {crawlProgress && (
-                      <div className="px-4 py-3 rounded-xl border text-sm flex items-center gap-2 bg-primary/10 border-primary/20 text-primary animate-pulse mb-3">
-                        <RefreshCcw className="h-4 w-4 animate-spin" />
-                        {crawlProgress}
-                      </div>
-                    )}
-
-                    {scrapeResult && (
-                      <div className={cn(
-                        "px-4 py-3 rounded-xl border text-sm flex items-center gap-2",
-                        scrapeResult.includes("Error") 
-                          ? "bg-rose-500/10 border-rose-500/20 text-rose-400" 
-                          : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                      )}>
-                        {scrapeResult.includes("Error") ? <RefreshCcw className="h-4 w-4" /> : <Check className="h-4 w-4" />}
-                        {scrapeResult}
-                      </div>
-                    )}
+                    <div className={cn(
+                      "px-4 py-3 rounded-xl border text-sm flex items-center gap-2",
+                      scrapeResult.includes("Error")
+                        ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
+                        : "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                    )}>
+                      {scrapeResult.includes("Error") ? <RefreshCcw className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                      {scrapeResult}
+                    </div>
                   </div>
                 )}
               </div>

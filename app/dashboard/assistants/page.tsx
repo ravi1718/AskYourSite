@@ -24,10 +24,24 @@ export default async function AssistantsPage() {
   const { data: assistants } = admin
     ? await admin
         .from("assistants")
-        .select("*")
+        .select("*, documents(count)")
         .eq("user_id", effectiveUserId)
         .order("created_at", { ascending: false })
     : { data: [] };
+
+  // Fix stale "draft" status for assistants that already have training data
+  if (admin && assistants) {
+    const staleIds = assistants
+      .filter((a: any) => a.status === "draft" && (a.documents?.[0]?.count ?? 0) > 0)
+      .map((a: any) => a.id);
+    if (staleIds.length > 0) {
+      await admin.from("assistants").update({ status: "training" }).in("id", staleIds);
+      staleIds.forEach((id: string) => {
+        const a = assistants.find((x: any) => x.id === id);
+        if (a) a.status = "training";
+      });
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl w-full animate-fade-up px-4">
@@ -65,15 +79,18 @@ export default async function AssistantsPage() {
         </div>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {assistants.map((assistant: any) => (
+          {assistants.map((assistant: any) => {
+            const docCount = assistant.documents?.[0]?.count ?? 0;
+            const displayStatus = assistant.status === "draft" && docCount > 0 ? "training" : assistant.status;
+            return (
             <Link key={assistant.id} href={`/dashboard/assistants/${assistant.id}`}>
               <div className="p-6 rounded-2xl border border-border bg-surface hover:border-primary/50 hover:shadow-glow transition-all cursor-pointer group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="h-10 w-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
                     <Bot className="h-5 w-5 text-white" />
                   </div>
-                  <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${assistant.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                    {assistant.status}
+                  <span className={`px-2 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider ${displayStatus === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : displayStatus === 'training' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
+                    {displayStatus}
                   </span>
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">{assistant.name}</h3>
@@ -86,7 +103,8 @@ export default async function AssistantsPage() {
                 </div>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

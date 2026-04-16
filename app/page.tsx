@@ -57,6 +57,7 @@ function Navbar() {
     { label: "Integrations", href: "#integrations" },
     { label: "Pricing", href: "#pricing" },
     { label: "Docs", href: "/docs" },
+    { label: "Setup Guide", href: "/setup" },
     { label: "Contact", href: "/contact" },
   ];
 
