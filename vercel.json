@@ -40,7 +40,7 @@
     },
     {
       "path": "/api/cron/handoff-timeout",
-      "schedule": "0 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
