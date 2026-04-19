@@ -3,39 +3,20 @@ import { ALL_DOC_ITEMS } from "@/lib/docs/config";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = "https://askyoursite.in";
+  const now = new Date("2026-04-19");
 
   const docUrls: MetadataRoute.Sitemap = ALL_DOC_ITEMS.map((item) => ({
     url: `${base}/docs/${item.section}/${item.slug}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.7,
+    lastModified: now,
   }));
 
   return [
-    {
-      url: base,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 1,
-    },
-    {
-      url: `${base}/docs`,
-      lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.8,
-    },
+    { url: base,                      lastModified: now },
+    { url: `${base}/setup`,           lastModified: now },
+    { url: `${base}/contact`,         lastModified: new Date("2026-04-01") },
+    { url: `${base}/docs`,            lastModified: now },
     ...docUrls,
-    {
-      url: `${base}/privacy`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${base}/terms`,
-      lastModified: new Date(),
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
+    { url: `${base}/privacy`,         lastModified: new Date("2026-01-01") },
+    { url: `${base}/terms`,           lastModified: new Date("2026-01-01") },
   ];
 }

@@ -1,0 +1,59 @@
+# AskYourSite
+> AI chat widget for automated customer support, lead capture, and sales qualification on websites. Deploy in 60 seconds.
+
+## What is AskYourSite?
+AskYourSite is an AI-powered chatbot platform that enables any website to handle customer support, qualify sales leads, and book appointments automatically. The AI agent trains on your website's content, responds in under one second, and escalates to a human agent when needed. Over 2,400 companies use AskYourSite to reduce support volume and capture leads without adding headcount.
+
+## Key Capabilities
+- Train AI on any website by entering a URL — no manual knowledge base setup
+- Intent detection: 5 behavioral signals (buying intent, frustration, urgency, unanswered questions, repeat visit patterns)
+- Human handoff: routes to Slack or email inbox when AI cannot answer
+- Lead capture: collects name, email, phone, and custom fields
+- Proactive triggers: sends messages based on time-on-page, exit intent, or page URL
+- Image search: users can search products visually via the chat widget
+- Multi-language support
+- Embed with one line of JavaScript
+
+## Integrations
+- CRM: HubSpot
+- Messaging: Slack
+- Scheduling: Calendly
+- Data: Airtable, Google Sheets, Notion
+- Automation: Zapier, webhooks
+- Analytics: Google Analytics
+
+## Pricing
+- Starter: $20/month — 1 AI agent, 200 conversations/month, ~50 pages training
+- Pro: $69/month — 3 AI agents, 1,000 conversations/month, ~200 pages, full integrations, lead capture
+- Business: $149/month — 10 AI agents, 5,000 conversations/month, team workspace, human handoff inbox
+- All plans: 7-day free trial, no credit card required
+
+## Product Pages
+- [Home](https://askyoursite.in/)
+- [Pricing](https://askyoursite.in/#pricing)
+- [How it Works](https://askyoursite.in/#how-it-works)
+- [Integrations](https://askyoursite.in/#integrations)
+- [Setup Guide](https://askyoursite.in/setup)
+- [Documentation](https://askyoursite.in/docs)
+- [Contact](https://askyoursite.in/contact)
+
+## Use Cases
+- E-Commerce: answer product questions, handle returns, capture purchase intent
+- SaaS: answer docs questions, detect demo intent, sync to CRM
+- Professional Services: capture leads, book discovery calls via Calendly
+- Healthcare: answer service questions, route urgent cases to human
+- Education: handle enrollment FAQs, book counselor appointments
+- Real Estate: answer property questions, schedule viewings
+
+## Comparison to Alternatives
+AskYourSite vs Intercom: AskYourSite is AI-first with auto-training from website content, no manual knowledge base. Starts at $20/month vs Intercom's $74+/month.
+AskYourSite vs Drift: AskYourSite deploys in 60 seconds without sales calls or enterprise contracts.
+AskYourSite vs Tidio: AskYourSite includes vector search, intent detection, and full integrations at the same price point.
+AskYourSite vs Freshdesk: AskYourSite is purpose-built for AI-first support, not a legacy ticketing system with AI bolted on.
+
+## Technical Details
+- Deployment: JavaScript embed snippet (one line, no framework required)
+- AI Model: Google Gemini for embeddings and responses
+- Storage: Supabase vector database for semantic search
+- Response latency: sub-second
+- SSR-rendered landing page (Next.js 15 App Router)

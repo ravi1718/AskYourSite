@@ -1,5 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#3b82f6"/>
-  <path d="M16 6L25 26H20.5L18.5 21H13.5L11.5 26H7L16 6Z" fill="white"/>
-  <path d="M14.5 18H17.5L16 14L14.5 18Z" fill="#3b82f6"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="main" x1="16" y1="3" x2="16" y2="29" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="45%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#9333EA"/>
+    </linearGradient>
+    <linearGradient id="hi" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.45)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </linearGradient>
+    <filter id="glow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="#09090F"/>
+  <path d="M16 3.5 L29.5 28.5 H22.5 L20.5 23.5 H11.5 L9.5 28.5 H2.5 Z"
+        fill="url(#main)" filter="url(#glow)"/>
+  <path d="M16 9 L22 27 H19.5 L18 22.5 H14 L12.5 27 H10 Z"
+        fill="#09090F"/>
+  <path d="M13.8 18.5 H18.2 L17.2 22 H14.8 Z" fill="url(#main)"/>
+  <path d="M16 3.5 L15.1 5.5 L4.5 28.5 L2.5 28.5 Z"
+        fill="url(#hi)" opacity="0.6"/>
+  <path d="M16 9 L15.3 11 L11 27 H10 Z"
+        fill="rgba(255,255,255,0.12)"/>
 </svg>
