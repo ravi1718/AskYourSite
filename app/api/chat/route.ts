@@ -8,6 +8,29 @@ import { parseAgentAction, stripAgentAction, executeAgentAction } from "@/lib/ag
 import { detectHumanRequest, evaluateHandoffTriggers } from "@/lib/handoff/detect-triggers";
 import { createHandoffSession } from "@/lib/handoff/create-session";
 
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3, delayMs = 5000): Promise<T> {
+  let lastErr: any;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastErr = err;
+      const msg = typeof err?.message === "string" ? err.message : "";
+      const retryable =
+        err?.status === 503 ||
+        err?.code === 503 ||
+        msg.includes("UNAVAILABLE") ||
+        msg.includes("high demand") ||
+        msg.includes("Service Unavailable") ||
+        msg.includes("503");
+      if (!retryable || attempt === maxAttempts) throw err;
+      console.warn(`[Chat] Gemini 503 — retrying in ${delayMs}ms (attempt ${attempt}/${maxAttempts})`);
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 // In-memory rate limiter: 10 requests per minute per IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT = 10;
@@ -762,18 +785,15 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
       };
     });
 
-    // Generate response using Gemini Flash
-    const responseStream = await ai.models.generateContentStream({
-      model: "gemini-3-flash-preview",
-      contents: geminiContents,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.6,
-      }
-    });
-
     // Collect assistant response for logging while streaming
     let fullAssistantResponse = "";
+
+    // Gemini call config — reused inside retry wrapper
+    const geminiCallConfig = {
+      model: "gemini-3-flash-preview",
+      contents: geminiContents,
+      config: { systemInstruction: systemPrompt, temperature: 0.6 },
+    };
 
     // Create a ReadableStream to stream text back to client
     const query = lastUserMessage || "";
@@ -784,10 +804,14 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
         let pendingAgentAction: import("@/lib/agent/executor").ActionPayload | null = null;
         try {
           // 1. Collect full Gemini response before streaming to client.
-          //    This lets us strip __AYS_AGENT_ACTION__ before it ever reaches the browser.
-          for await (const chunk of responseStream) {
-            if (chunk.text) fullAssistantResponse += chunk.text;
-          }
+          //    Wrapped in retry so transient 503 errors auto-recover after 5 s.
+          await withRetry(async () => {
+            fullAssistantResponse = "";
+            const responseStream = await ai.models.generateContentStream(geminiCallConfig);
+            for await (const chunk of responseStream) {
+              if (chunk.text) fullAssistantResponse += chunk.text;
+            }
+          }, 3, 5000);
 
           // Strip agent action marker before streaming — prevents marker leaking into the widget
           if (isAgentMode) {
@@ -1024,10 +1048,22 @@ RESPONSE STYLE: Be brief and conversational — you are chatting, not writing an
 
   } catch (error: any) {
     console.error("[Chat] API Error:", error);
+    const msg = typeof error?.message === "string" ? error.message : "";
+    if (
+      error?.status === 503 ||
+      msg.includes("UNAVAILABLE") ||
+      msg.includes("high demand") ||
+      msg.includes("Service Unavailable")
+    ) {
+      return NextResponse.json(
+        { error: "The AI service is currently experiencing high demand. Please try again in a few seconds." },
+        { status: 503, headers: { "Access-Control-Allow-Origin": "*" } }
+      );
+    }
     if (
       error?.status === 429 ||
-      error?.message?.includes("RESOURCE_EXHAUSTED") ||
-      error?.message?.includes("quota")
+      msg.includes("RESOURCE_EXHAUSTED") ||
+      msg.includes("quota")
     ) {
       return NextResponse.json(
         { error: "The AI service is currently busy due to high demand. Please try again in a few minutes." },
